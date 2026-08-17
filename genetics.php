@@ -2399,18 +2399,24 @@ private function genotypeEquivalent(string $g1, string $g2): bool
         // オスの場合 - 表現型からの推論を試みる
         $expressed = $this->detectZLinkedExpressedLoci($baseColor);
 
-        // 2つ以上の伴性形質が同時発現 → Cis確定
+        // 2つ以上の伴性形質が同時発現 → 各発現座位でホモ接合確定
+        // cin/ino/op はいずれも劣性伴性形質のため、オスがこれらを「発現」するには
+        // 該当座位でホモ接合（両Z染色体に同一の変異アレル）でなければならない。
+        // 野生型アレルは「発現せず持っているだけ（スプリット）」の状態であり、
+        // 発現とは両立しない。したがって Z2 も発現座位では Z1 と同じ変異アレルを持つ。
         if (count($expressed) >= 2) {
             $z1 = ['cinnamon' => '+', 'ino' => '+', 'opaline' => '+'];
+            $z2 = ['cinnamon' => '+', 'ino' => '+', 'opaline' => '+'];
             foreach ($expressed as $locus => $allele) {
                 $z1[$locus] = $allele;
+                $z2[$locus] = $allele;
             }
             return [
-                'phase' => 'cis',
+                'phase' => 'homozygous',
                 'Z1' => $z1,
-                'Z2' => ['cinnamon' => '+', 'ino' => '+', 'opaline' => '+'],
+                'Z2' => $z2,
                 'confidence' => 100,
-                'note' => '複数伴性形質同時発現 → Cis確定',
+                'note' => '複数伴性形質同時発現 → 各発現座位でホモ接合確定（両Zが同一の変異アレルを保持）',
             ];
         }
 
