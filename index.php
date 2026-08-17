@@ -1222,6 +1222,8 @@ const INDEPENDENT_LOCI = <?= json_encode(AgapornisLoci::INDEPENDENT_LOCI) ?>;
                                         <?= t('phase_z_cis') ?>
                                     <?php elseif($zLinked['phase'] === 'trans'): ?>
                                         <?= t('phase_z_trans') ?>
+                                    <?php elseif($zLinked['phase'] === 'homozygous'): ?>
+                                        <?= t('phase_z_homozygous') ?>
                                     <?php else: ?>
                                         <?= htmlspecialchars($zLinked['phase']) ?>
                                     <?php endif; ?>
@@ -1247,6 +1249,10 @@ const INDEPENDENT_LOCI = <?= json_encode(AgapornisLoci::INDEPENDENT_LOCI) ?>;
                             <?php elseif($zLinked['phase'] === 'trans'): ?>
                             <div style="margin-top:.75rem;padding:.5rem;background:rgba(255,255,255,0.1);border-radius:4px;font-size:.85em;color:#fff;">
                                 ⚠️ <?= t('phase_z_trans_tip') ?>
+                            </div>
+                            <?php elseif($zLinked['phase'] === 'homozygous'): ?>
+                            <div style="margin-top:.75rem;padding:.5rem;background:rgba(255,255,255,0.1);border-radius:4px;font-size:.85em;color:#fff;">
+                                💡 <?= t('phase_z_homozygous_tip') ?>
                             </div>
                             <?php endif; ?>
                         </div>
