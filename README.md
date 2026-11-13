@@ -179,6 +179,86 @@ Accurately calculates offspring probability differences based on **Cis/Trans pha
 - Lacewing from Cis parent: 48.5%
 - Lacewing from Trans parent: 1.5%
 
+### Why cin-op is 31.2%, not 33%
+
+Only cin-ino (3%) and ino-op (30%) are taken from the source. The cin-op rate is derived from them assuming no crossover interference, which is exactly how the offspring calculation (`GeneticsCalculator`) combines the two intervals:
+
+| Gamete class | Probability | cin-op relation |
+|---|---|---|
+| No crossover | (1 − 0.03)(1 − 0.30) = 0.679 | parental |
+| Crossover in cin-ino only | 0.03 × 0.70 = 0.021 | **recombinant** |
+| Crossover in ino-op only | 0.97 × 0.30 = 0.291 | **recombinant** |
+| Double crossover | 0.03 × 0.30 = 0.009 | parental (restored) |
+
+cin-op recombinant = 0.021 + 0.291 = **0.312** = r₁ + r₂ − 2·r₁·r₂.
+Simple addition (3% + 30% = 33%) wrongly counts the double crossover as a recombinant. `AgapornisLoci::RECOMBINATION_RATES['cinnamon-opaline']` is defined by this formula, and PathFinder's linkage notes and cis/trans calculations read the same constant.
+
+---
+
+## 🔬 Inference Logic Details
+
+### Genotype helpers (`AgapornisLoci`, SSOT)
+
+| Method | Purpose |
+|---|---|
+| `splitGenotype($locus, $geno)` | Splits a genotype string into alleles using the allele names in `LOCI` (`'Pi+'` → `['Pi','+']`, `'inoW'` → `['ino']`). Legacy lowercase `ed` is read as `Ed`. Returns `null` if unparseable. |
+| `wildAllele($locus)` | The allele with code 0 in `LOCI` (`+`, `d`, `v`). |
+| `isExpressedAlleles($locus, $alleles)` | Dominant types (AD/AID): expressed if any mutant allele is present. Recessive types: expressed only if every allele is mutant (a hemizygous female has one allele). |
+
+### Family inference (`FamilyEstimatorV3`)
+
+For each locus, every genotype starts with a uniform prior and is then constrained in this order:
+
+1. **Self**: a known genotype fixes the result. An expressed phenotype keeps only genotypes containing that allele. A phenotype that is known *not* to express the locus removes expressing genotypes (see the limits below).
+2. **Parents**:
+   - Known parental genotypes remove genotypes the child cannot inherit.
+   - Sex-linked: a daughter receives her father's Z, and a **son always receives his expressing mother's Z**, so a son lacking the dam's allele gets probability **0**.
+   - When neither parent expresses the locus, the child is weighted by **Mendelian ratios** (below).
+3. **Offspring**, then **siblings**.
+4. Normalize to 100%.
+
+**Mendelian weighting.** For each parent, the allele it transmits is derived from its known genotype or, if none, from every genotype consistent with its phenotype, assumed uniformly. Each genotype passes each of its alleles with equal probability. The expected child distribution is divided by the uniform prior and multiplied into the candidates. If contradictory input would zero every candidate, the unweighted values are kept.
+
+*Example*: green × green → green son, dilute locus. Each green parent is `++`, `+dil` or `dil+`, so it passes `dil` with probability 1/3. Child: `++` 4/9, `+dil` 4/9, `dildil` 1/9. The son is not dilute, so `dildil` is removed → **`++` 50% / `+dil` 50%**.
+
+**Limits of "not expressed" (deliberately conservative):**
+- Applied only when `phenotype.baseColor` exists in `COLOR_DEFINITIONS`. A missing or unknown colour makes no assumption.
+- Not applied to **dark** (entered separately as `darkness`) or **violet** (visibility depends on the base series).
+- In **INO birds**, loci other than `ino` and `parblue` are masked and are not judged.
+- Known gap: the parents' `darkness` field is not used yet, so dark-factor inference from parents is uninformed (`Dd` 50%, `dd`/`DD` 25%).
+
+### Minimum generations (`PathFinder::findPath()['minGenerations']`)
+
+This follows the plan's own model: each mutant locus is introduced by crossing an expressing bird with a wild-type bird. These lines run in parallel and are then merged.
+
+```
+minGenerations = 0                                     (wild type)
+               = 1 + ceil(log2 n) + (fixation ? 1 : 0)  (n mutant loci)
+```
+
+- `1`: the first outcross of every line (in parallel).
+- `ceil(log2 n)`: merging n lines two at a time until one bird carries all of them.
+- `fixation`: +1 if any target genotype contains no wild allele (recessive homozygote, hemizygous sex-linked female, `DD`, `tqaq`, …), because heterozygotes must be paired to reach it.
+
+| Target | n | fixation | minGenerations |
+|---|---|---|---|
+| Green | 0 | – | 0 |
+| Dominant Pied Green (`Pi+`) | 1 | no | 1 |
+| Lutino, Dilute Green | 1 | yes | 2 |
+| Pure White (`tqtq` + `inoino`) | 2 | yes | 3 |
+
+This is the minimum *for this plan*. Shorter routes, such as pairing two expressing birds directly, are not counted.
+
+### Phenotype → genotype confidence (`GenotypeEstimator`)
+
+| Confidence | Meaning | Examples |
+|---|---|---|
+| 100 (confirmed) | The phenotype fixes the genotype | Expressed recessive; dominant **not** expressed → `++`; sex-linked female not expressed → `+W`; dark/violet |
+| 50 | Two genotypes look the same | Dominant Pied `Pi+` vs `PiPi`; Edged `Ed+` vs `EdEd`; Pallid male `pldpld` vs `pldino` |
+| 0 | Cannot be determined from phenotype | Hidden recessive split (male or autosomal); loci masked by INO |
+
+Wild-type values are built from `LOCI` (`dd`, `vv`, `++`, `+W`).
+
 ---
 
 ## 🛡️ Health Assessment
@@ -207,7 +287,7 @@ Comprehensive test suite covering all genetic calculations and integrations.
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 113 (PHP 83 + JS 30) |
+| Total Tests | 120 (PHP 90 + JS 30) |
 | Pass Rate | 100% |
 | Test File | `debug_test.php` |
 | Report | [`TEST_REPORT.md`](TEST_REPORT.md) |
@@ -215,6 +295,7 @@ Comprehensive test suite covering all genetic calculations and integrations.
 **Test Categories:**
 - PHP Unit tests (50): Core classes, calculations, color definitions
 - PHP Integration tests (33): UI/API compatibility, SSOT integrity, i18n coverage
+- PHP Regression tests (7): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression), minGenerations, phenotype confidence
 - JS Tests (30): BreedingValidator, HealthGuardian, BreedingPlanner
 
 Run tests via browser: `debug_test.php?run_tests=1`
