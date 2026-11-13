@@ -104,25 +104,25 @@ genetics.php (SSOT)
 
 The mathematical logic of `genetics.php` (genetic calculation core engine) has been verified for computational reliability through cross-referencing with *Principles of Avian Genetics for Aviculture* (full text) using Gemini 3 in a single context window for mathematical validation against genetic theory.
 
-### File List (17 files, 27,464 lines)
+### File List (17 files, 27,841 lines)
 
 | File | Lines | Purpose |
 |------|------:|---------|
-| genetics.php | 5,256 | Genetics calculation engine (SSOT) |
+| genetics.php | 5,264 | Genetics calculation engine (SSOT) |
 | style.css | 3,091 | All styles |
-| debug_test.php | 2,747 | Debug test suite |
-| index.php | 2,299 | Main UI + JS constant injection |
+| debug_test.php | 2,783 | Debug test suite |
+| index.php | 2,311 | Main UI + JS constant injection |
 | birds.js | 2,298 | Bird DB + 72 demo specimens |
 | lang_pathfinder.php | 2,192 | PathFinder i18n (11 languages) |
 | planner.js | 2,042 | Breeding planner + linkage evaluation |
-| readme_lang.php | 1,585 | README i18n (11 languages) |
+| readme_lang.php | 1,817 | README i18n (11 languages) |
 | family.js | 1,542 | Family tree UI + Auto Populate |
 | lang_guardian.php | 1,165 | Guardian i18n (11 languages) |
 | app.js | 908 | Main application logic |
-| pedigree.js | 602 | Pedigree chart rendering |
+| pedigree.js | 650 | Pedigree chart rendering |
 | guardian.js | 517 | Health assessment engine |
 | breeding.js | 492 | Breeding calculation UI |
-| readme.php | 332 | README page |
+| readme.php | 373 | README page |
 | infer.php | 214 | Genotype inference logic |
 | lang.php | 182 | Base i18n (11 languages) |
 
@@ -270,7 +270,13 @@ This is the minimum *for this plan*. Shorter routes, such as pairing two express
 | 50 | Two genotypes look the same | Dominant Pied `Pi+` vs `PiPi`; Pallid male `pldpld` vs `pldino` |
 | 0 | Cannot be determined from phenotype | Hidden recessive split (male or autosomal); loci masked by INO |
 
-Wild-type values are built from `LOCI` (`dd`, `vv`, `++`, `+W`).
+Wild-type values are built from `LOCI` (`dd`, `vv`, `++`, `+W`). For confidence 50 the result also carries `alternatives` (e.g. `["Pi+","PiPi"]`). The estimator screen shows them as "One of two: Pi+ / PiPi" instead of "?".
+
+The pedigree certificate (`pedigree.js` → `phenotypeConfidence()`) applies the same rule on the JS side, using `COLOR_MASTER` and `LOCI_MASTER`. It agrees with the PHP result for all 8,060 colour × sex × locus combinations, excluding dark, which comes from separate inputs. Red eyes alone no longer confirm INO, because fallow birds are red-eyed too.
+
+### In-app README (`readme.php`)
+
+The 🧮 Inference Logic section explains the rules above in all 11 languages. Untranslated keys fall back to English, then Japanese, so raw key names are never shown. `?lang=` accepts only the 11 supported language codes.
 
 ---
 
@@ -300,14 +306,14 @@ Comprehensive test suite covering all genetic calculations and integrations.
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 121 (PHP 91 + JS 30) |
+| Total Tests | 123 (PHP 93 + JS 30) |
 | Pass Rate | 100% |
 | Test File | `debug_test.php` |
 
 **Test Categories:**
 - PHP Unit tests (50): Core classes, calculations, color definitions
 - PHP Integration tests (33): UI/API compatibility, SSOT integrity, i18n coverage
-- PHP Regression tests (8): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression), minGenerations, phenotype confidence, Edged inheritance mode
+- PHP Regression tests (10): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression), minGenerations, phenotype confidence and alternatives, Edged inheritance mode, in-app README i18n and `lang` whitelist
 - JS Tests (30): BreedingValidator, HealthGuardian, BreedingPlanner
 
 Run tests via browser: `debug_test.php?run_tests=1`

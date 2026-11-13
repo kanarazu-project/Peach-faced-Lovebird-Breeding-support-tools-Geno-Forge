@@ -5,9 +5,9 @@
  */
 
 function getReadmeLang(): string {
-    if (isset($_GET['lang'])) return $_GET['lang'];
-    if (isset($_COOKIE['lang'])) return $_COOKIE['lang'];
-    return 'ja';
+    // 対応言語だけを受け付ける（未知の値を <html lang> などにそのまま出力しない）
+    $lang = $_GET['lang'] ?? $_COOKIE['lang'] ?? 'ja';
+    return (is_string($lang) && isset(README_LANG[$lang])) ? $lang : 'ja';
 }
 
 function rt(string $key): string {
@@ -16,7 +16,8 @@ function rt(string $key): string {
         $lang = getReadmeLang();
         $dict = README_LANG[$lang] ?? README_LANG['ja'];
     }
-    return $dict[$key] ?? $key;
+    // 未翻訳のキーは英語 → 日本語の順に補う（キー名がそのまま表示されないように）
+    return $dict[$key] ?? README_LANG['en'][$key] ?? README_LANG['ja'][$key] ?? $key;
 }
 
 const README_LANG = [
@@ -181,6 +182,27 @@ const README_LANG = [
         'feat_ui_reorg' => 'コマンドUI整理（v7.3.22）',
         'feat_ui_reorg_1' => 'セクション分割: 「家系図のクリア」「家系図スナップショット」で整理',
         'feat_ui_reorg_2' => 'デモモード制限: クリア・セーブ・ロード・インポートはデモモードで無効（横線表示）',
+
+        // 推定ロジック（v7.3）
+        'logic' => '推定ロジック',
+        'logic_intro' => '計算の根拠と、推定結果の読み方です。詳しい式と例は README.md と genetics_summary.txt にあります。',
+        'logic_recomb_h' => '連鎖：cinnamon–opaline の組換え率 31.2%',
+        'logic_recomb' => '出典の値は cin–ino 3% と ino–op 30% だけです。cin–op はこの2つから干渉なしで導きます：<code>0.03 + 0.30 − 2×0.03×0.30 = 0.312</code>。単純な足し算（33%）は、元の組合せに戻る二重組換えまで組換えとして数えてしまいます。',
+        'logic_family_h' => '家系推定',
+        'logic_family_1' => '座位ごとに、本人 → 両親 → 子 → 兄弟の順で候補を絞り、最後に合計 100% に正規化します。',
+        'logic_family_2' => '伴性：娘は父の Z を受け取ります。表現している母の息子は、母のアレルを必ず持ちます。',
+        'logic_family_3' => '両親とも表現していない座位は、メンデル比で重み付けします。例：グリーン × グリーンから生まれたグリーンの子のダイリュートは <code>++</code> 50% / <code>+dil</code> 50%。',
+        'logic_family_4' => '「色に出ていない」とは、色名が定義にあるときだけ判定します。ダーク・バイオレットと、INO 個体のほかの座位は判定しません。親の濃さ（darkness）はまだ推定に使っていません。',
+        'logic_mingen_h' => '最短世代数',
+        'logic_mingen' => 'プランの手順どおり、各変異を「表現個体 × 野生型」で導入し、系統を並行して進めて合流させた場合の世代数です。野生型アレルを含まない目標（劣性ホモ、伴性のメスなど）があれば、そろえる世代が 1 つ増えます。表現個体どうしを直接交配する近道は数えません。',
+        'logic_conf_h' => '表現型からの確信度',
+        'logic_conf_100' => '確定：表現している劣性、優性が出ていない（<code>++</code>）、伴性のメス、ダーク・バイオレット',
+        'logic_conf_50' => '2通りのどちらか：<code>Pi+</code> / <code>PiPi</code>、パリッドのオスの <code>pldpld</code> / <code>pldino</code>',
+        'logic_conf_0' => '不明：劣性の隠れスプリット、INO に隠された座位',
+        'logic_edged_h' => 'エッジド（マーブル）',
+        'logic_edged_1' => '常染色体劣性です。<code>EdEd</code> だけが表現し、<code>Ed+</code> はスプリットです。',
+        'logic_edged_2' => 'ALBS 名は Edged Dilute、国際名は marbled（記号 mb）です。“Edged Dilute” はオランダ語 pastelgezoomd（edged pastel）の誤訳から来た名前で、エッジドとダイリュートの組合せではありません。',
+        'logic_edged_3' => 'フィッシャーとボタンの dominant edged（ALBS 名 Spangled）は、優性の別の変異です。',
     ],
 
     'en' => [
@@ -344,6 +366,27 @@ const README_LANG = [
         'feat_ui_reorg' => 'Command UI Reorganization (v7.3.22)',
         'feat_ui_reorg_1' => 'Section Layout: Organized into "Clear Family Map" and "Family Map Snapshot" sections',
         'feat_ui_reorg_2' => 'Demo Mode Restrictions: Clear, Save, Load, Import disabled in demo mode (shown with strikethrough)',
+
+        // 推定ロジック（v7.3）
+        'logic' => 'Inference Logic',
+        'logic_intro' => 'How results are calculated and how to read them. Full formulas and examples are in README.md and genetics_summary.txt.',
+        'logic_recomb_h' => 'Linkage: cinnamon–opaline recombination 31.2%',
+        'logic_recomb' => 'Only cin–ino 3% and ino–op 30% come from the source. cin–op is derived from them without interference: <code>0.03 + 0.30 − 2×0.03×0.30 = 0.312</code>. Simple addition (33%) wrongly counts double crossovers, which restore the parental combination, as recombinants.',
+        'logic_family_h' => 'Family inference',
+        'logic_family_1' => 'For each locus, candidates are narrowed by the bird itself → parents → offspring → siblings, then normalized to 100%.',
+        'logic_family_2' => 'Sex-linked: a daughter receives her father’s Z. A son of an expressing mother always carries her allele.',
+        'logic_family_3' => 'When neither parent expresses a locus, the child is weighted by Mendelian ratios. Example: a green chick of green × green is <code>++</code> 50% / <code>+dil</code> 50% for dilute.',
+        'logic_family_4' => '“Not expressed” is used only when the colour name is defined. Dark, violet and loci masked by INO are not judged. The parents’ darkness field is not used yet.',
+        'logic_mingen_h' => 'Minimum generations',
+        'logic_mingen' => 'Generations for the plan’s route: each mutation is introduced by crossing an expressing bird with a wild-type bird, and the lines are run in parallel and merged. One more generation is added if any target genotype has no wild allele (recessive homozygote, sex-linked female, etc.). Shortcuts such as pairing two expressing birds are not counted.',
+        'logic_conf_h' => 'Confidence from phenotype',
+        'logic_conf_100' => 'Confirmed: expressed recessive, dominant not expressed (<code>++</code>), sex-linked female, dark/violet',
+        'logic_conf_50' => 'One of two: <code>Pi+</code> / <code>PiPi</code>; Pallid male <code>pldpld</code> / <code>pldino</code>',
+        'logic_conf_0' => 'Unknown: hidden recessive split; loci masked by INO',
+        'logic_edged_h' => 'Edged (Marbled)',
+        'logic_edged_1' => 'Autosomal recessive. Only <code>EdEd</code> is visual; <code>Ed+</code> is a split.',
+        'logic_edged_2' => 'ALBS name: Edged Dilute. International name: marbled (symbol mb). “Edged Dilute” comes from a mistranslation of the Dutch pastelgezoomd (edged pastel); it is not a combination of edged and dilute.',
+        'logic_edged_3' => 'The dominant edged of Fischer’s and Masked lovebirds (ALBS: Spangled) is a different, dominant mutation.',
     ],
 
     'de' => [
@@ -507,6 +550,27 @@ const README_LANG = [
         'feat_ui_reorg' => 'Befehl-UI-Reorganisation (v7.3.22)',
         'feat_ui_reorg_1' => 'Abschnitts-Layout: Organisiert in „Stammbaum löschen" und „Stammbaum-Snapshot" Bereiche',
         'feat_ui_reorg_2' => 'Demo-Modus-Einschränkungen: Löschen, Speichern, Laden, Import im Demo-Modus deaktiviert (durchgestrichen)',
+
+        // 推定ロジック（v7.3）
+        'logic' => 'Inferenzlogik',
+        'logic_intro' => 'Wie die Ergebnisse berechnet werden und wie man sie liest. Formeln und Beispiele stehen in README.md und genetics_summary.txt.',
+        'logic_recomb_h' => 'Kopplung: Rekombination Zimt–Opalin 31,2 %',
+        'logic_recomb' => 'Aus der Quelle stammen nur cin–ino 3 % und ino–op 30 %. cin–op wird daraus ohne Interferenz abgeleitet: <code>0.03 + 0.30 − 2×0.03×0.30 = 0.312</code>. Einfache Addition (33 %) zählt Doppel-Crossover, die die Ausgangskombination wiederherstellen, fälschlich als Rekombinanten.',
+        'logic_family_h' => 'Familieninferenz',
+        'logic_family_1' => 'Pro Locus werden die Kandidaten über den Vogel selbst → Eltern → Nachkommen → Geschwister eingegrenzt und dann auf 100 % normiert.',
+        'logic_family_2' => 'Geschlechtsgebunden: Eine Tochter erhält das Z des Vaters. Ein Sohn einer zeigenden Mutter trägt immer ihr Allel.',
+        'logic_family_3' => 'Zeigt keiner der Eltern einen Locus, wird das Kind nach Mendel-Verhältnissen gewichtet. Beispiel: Ein grünes Küken aus Grün × Grün ist bei Dilute <code>++</code> 50 % / <code>+dil</code> 50 %.',
+        'logic_family_4' => '„Nicht gezeigt“ wird nur bei definiertem Farbnamen verwendet. Dunkelfaktor, Violett und durch INO verdeckte Loci werden nicht beurteilt. Das Feld „darkness“ der Eltern wird noch nicht genutzt.',
+        'logic_mingen_h' => 'Mindestanzahl Generationen',
+        'logic_mingen' => 'Generationen für den Weg des Plans: Jede Mutation wird durch Verpaarung eines zeigenden Vogels mit einem Wildtyp eingeführt; die Linien laufen parallel und werden zusammengeführt. Eine Generation mehr, wenn ein Zielgenotyp kein Wildallel enthält (rezessiv homozygot, geschlechtsgebundene Henne usw.). Abkürzungen wie die Verpaarung zweier zeigender Vögel werden nicht gezählt.',
+        'logic_conf_h' => 'Sicherheit aus dem Phänotyp',
+        'logic_conf_100' => 'Bestätigt: gezeigtes Rezessiv, nicht gezeigtes Dominant (<code>++</code>), geschlechtsgebundene Henne, Dunkelfaktor/Violett',
+        'logic_conf_50' => 'Eines von zwei: <code>Pi+</code> / <code>PiPi</code>; Pallid-Hahn <code>pldpld</code> / <code>pldino</code>',
+        'logic_conf_0' => 'Unbekannt: verdeckter rezessiver Spalt; durch INO verdeckte Loci',
+        'logic_edged_h' => 'Edged (Marbled)',
+        'logic_edged_1' => 'Autosomal rezessiv. Nur <code>EdEd</code> ist sichtbar; <code>Ed+</code> ist spalterbig.',
+        'logic_edged_2' => 'ALBS-Name: Edged Dilute. Internationaler Name: marbled (Symbol mb). „Edged Dilute“ stammt aus einer Fehlübersetzung des niederländischen pastelgezoomd (edged pastel) und ist keine Kombination aus Edged und Dilute.',
+        'logic_edged_3' => 'Das dominant edged bei Fischers und Schwarzköpfchen (ALBS: Spangled) ist eine andere, dominante Mutation.',
     ],
 
     'fr' => [
@@ -670,6 +734,27 @@ const README_LANG = [
         'feat_ui_reorg' => 'Réorganisation UI des commandes (v7.3.22)',
         'feat_ui_reorg_1' => 'Mise en page par sections: Organisé en sections « Effacer l\'arbre » et « Instantané de l\'arbre »',
         'feat_ui_reorg_2' => 'Restrictions mode démo: Effacer, Sauvegarder, Charger, Importer désactivés en mode démo (barrés)',
+
+        // 推定ロジック（v7.3）
+        'logic' => 'Logique d’inférence',
+        'logic_intro' => 'Comment les résultats sont calculés et comment les lire. Formules et exemples dans README.md et genetics_summary.txt.',
+        'logic_recomb_h' => 'Liaison : recombinaison cannelle–opaline 31,2 %',
+        'logic_recomb' => 'Seules les valeurs cin–ino 3 % et ino–op 30 % viennent de la source. cin–op en est déduit sans interférence : <code>0.03 + 0.30 − 2×0.03×0.30 = 0.312</code>. L’addition simple (33 %) compte à tort comme recombinants les doubles crossing-over, qui rétablissent la combinaison parentale.',
+        'logic_family_h' => 'Inférence familiale',
+        'logic_family_1' => 'Pour chaque locus, les candidats sont réduits par l’oiseau lui-même → parents → descendants → frères et sœurs, puis normalisés à 100 %.',
+        'logic_family_2' => 'Lié au sexe : une fille reçoit le Z de son père. Un fils d’une mère qui exprime porte toujours son allèle.',
+        'logic_family_3' => 'Si aucun parent n’exprime le locus, l’enfant est pondéré par les rapports mendéliens. Exemple : un jeune vert de vert × vert est <code>++</code> 50 % / <code>+dil</code> 50 % pour le dilué.',
+        'logic_family_4' => '« Non exprimé » n’est utilisé que si le nom de couleur est défini. Le facteur foncé, le violet et les loci masqués par l’INO ne sont pas jugés. Le champ darkness des parents n’est pas encore utilisé.',
+        'logic_mingen_h' => 'Nombre minimal de générations',
+        'logic_mingen' => 'Générations pour le parcours du plan : chaque mutation est introduite en croisant un oiseau qui l’exprime avec un type sauvage ; les lignées avancent en parallèle puis sont réunies. Une génération de plus si un génotype cible n’a pas d’allèle sauvage (homozygote récessif, femelle liée au sexe, etc.). Les raccourcis, comme apparier deux oiseaux qui expriment, ne sont pas comptés.',
+        'logic_conf_h' => 'Confiance d’après le phénotype',
+        'logic_conf_100' => 'Confirmé : récessif exprimé, dominant non exprimé (<code>++</code>), femelle liée au sexe, foncé/violet',
+        'logic_conf_50' => 'Un des deux : <code>Pi+</code> / <code>PiPi</code> ; mâle pallid <code>pldpld</code> / <code>pldino</code>',
+        'logic_conf_0' => 'Inconnu : porteur récessif caché ; loci masqués par l’INO',
+        'logic_edged_h' => 'Edged (Marbled)',
+        'logic_edged_1' => 'Autosomique récessif. Seul <code>EdEd</code> est visible ; <code>Ed+</code> est porteur.',
+        'logic_edged_2' => 'Nom ALBS : Edged Dilute. Nom international : marbled (symbole mb). « Edged Dilute » vient d’une mauvaise traduction du néerlandais pastelgezoomd (edged pastel) ; ce n’est pas une combinaison d’edged et de dilué.',
+        'logic_edged_3' => 'Le dominant edged des inséparables de Fischer et masqués (ALBS : Spangled) est une autre mutation, dominante.',
     ],
 
     'it' => [
@@ -833,6 +918,27 @@ const README_LANG = [
         'feat_ui_reorg' => 'Riorganizzazione UI comandi (v7.3.22)',
         'feat_ui_reorg_1' => 'Layout a sezioni: Organizzato in sezioni "Cancella albero" e "Snapshot albero"',
         'feat_ui_reorg_2' => 'Restrizioni modalità demo: Cancella, Salva, Carica, Importa disabilitati in modalità demo (barrati)',
+
+        // 推定ロジック（v7.3）
+        'logic' => 'Logica di inferenza',
+        'logic_intro' => 'Come vengono calcolati i risultati e come leggerli. Formule ed esempi in README.md e genetics_summary.txt.',
+        'logic_recomb_h' => 'Associazione: ricombinazione cannella–opalino 31,2%',
+        'logic_recomb' => 'Dalla fonte provengono solo cin–ino 3% e ino–op 30%. cin–op ne è derivato senza interferenza: <code>0.03 + 0.30 − 2×0.03×0.30 = 0.312</code>. La semplice somma (33%) conta erroneamente come ricombinanti i doppi crossing-over, che ripristinano la combinazione parentale.',
+        'logic_family_h' => 'Inferenza familiare',
+        'logic_family_1' => 'Per ogni locus i candidati vengono ristretti dal soggetto stesso → genitori → figli → fratelli, poi normalizzati al 100%.',
+        'logic_family_2' => 'Legato al sesso: una figlia riceve lo Z del padre. Un figlio di una madre che lo esprime porta sempre il suo allele.',
+        'logic_family_3' => 'Se nessun genitore esprime il locus, il figlio è pesato secondo i rapporti mendeliani. Esempio: un piccolo verde da verde × verde è <code>++</code> 50% / <code>+dil</code> 50% per il diluito.',
+        'logic_family_4' => '“Non espresso” si usa solo se il nome del colore è definito. Fattore scuro, violetto e loci mascherati dall’INO non vengono valutati. Il campo darkness dei genitori non è ancora usato.',
+        'logic_mingen_h' => 'Numero minimo di generazioni',
+        'logic_mingen' => 'Generazioni per il percorso del piano: ogni mutazione è introdotta accoppiando un soggetto che la esprime con un ancestrale; le linee procedono in parallelo e vengono unite. Una generazione in più se un genotipo obiettivo non ha l’allele selvatico (omozigote recessivo, femmina legata al sesso, ecc.). Le scorciatoie, come accoppiare due soggetti che esprimono, non sono contate.',
+        'logic_conf_h' => 'Affidabilità dal fenotipo',
+        'logic_conf_100' => 'Confermato: recessivo espresso, dominante non espresso (<code>++</code>), femmina legata al sesso, scuro/violetto',
+        'logic_conf_50' => 'Uno dei due: <code>Pi+</code> / <code>PiPi</code>; maschio pallid <code>pldpld</code> / <code>pldino</code>',
+        'logic_conf_0' => 'Sconosciuto: portatore recessivo nascosto; loci mascherati dall’INO',
+        'logic_edged_h' => 'Edged (Marbled)',
+        'logic_edged_1' => 'Autosomico recessivo. Solo <code>EdEd</code> è visibile; <code>Ed+</code> è portatore.',
+        'logic_edged_2' => 'Nome ALBS: Edged Dilute. Nome internazionale: marbled (simbolo mb). “Edged Dilute” deriva da una traduzione errata dell’olandese pastelgezoomd (edged pastel); non è una combinazione di edged e diluito.',
+        'logic_edged_3' => 'Il dominant edged di fischeri e personata (ALBS: Spangled) è un’altra mutazione, dominante.',
     ],
 
     'es' => [
@@ -996,6 +1102,27 @@ const README_LANG = [
         'feat_ui_reorg' => 'Reorganización UI de comandos (v7.3.22)',
         'feat_ui_reorg_1' => 'Diseño por secciones: Organizado en secciones "Borrar árbol" y "Instantánea del árbol"',
         'feat_ui_reorg_2' => 'Restricciones modo demo: Borrar, Guardar, Cargar, Importar deshabilitados en modo demo (tachados)',
+
+        // 推定ロジック（v7.3）
+        'logic' => 'Lógica de inferencia',
+        'logic_intro' => 'Cómo se calculan los resultados y cómo leerlos. Fórmulas y ejemplos en README.md y genetics_summary.txt.',
+        'logic_recomb_h' => 'Ligamiento: recombinación canela–opalino 31,2 %',
+        'logic_recomb' => 'De la fuente solo provienen cin–ino 3 % e ino–op 30 %. cin–op se deriva de ellos sin interferencia: <code>0.03 + 0.30 − 2×0.03×0.30 = 0.312</code>. La suma simple (33 %) cuenta por error como recombinantes los dobles entrecruzamientos, que restablecen la combinación parental.',
+        'logic_family_h' => 'Inferencia familiar',
+        'logic_family_1' => 'Para cada locus, los candidatos se reducen por el propio ave → padres → crías → hermanos, y se normalizan al 100 %.',
+        'logic_family_2' => 'Ligado al sexo: una hija recibe el Z de su padre. Un hijo de una madre que lo expresa siempre porta su alelo.',
+        'logic_family_3' => 'Si ningún progenitor expresa el locus, la cría se pondera por proporciones mendelianas. Ejemplo: una cría verde de verde × verde es <code>++</code> 50 % / <code>+dil</code> 50 % para diluido.',
+        'logic_family_4' => '“No expresado” solo se usa si el nombre de color está definido. Factor oscuro, violeta y loci enmascarados por INO no se evalúan. El campo darkness de los padres aún no se usa.',
+        'logic_mingen_h' => 'Generaciones mínimas',
+        'logic_mingen' => 'Generaciones para la ruta del plan: cada mutación se introduce cruzando un ave que la expresa con un ave ancestral; las líneas avanzan en paralelo y se unen. Se suma una generación si algún genotipo objetivo no tiene alelo silvestre (homocigoto recesivo, hembra ligada al sexo, etc.). Los atajos, como cruzar dos aves que expresan, no se cuentan.',
+        'logic_conf_h' => 'Confianza según el fenotipo',
+        'logic_conf_100' => 'Confirmado: recesivo expresado, dominante no expresado (<code>++</code>), hembra ligada al sexo, oscuro/violeta',
+        'logic_conf_50' => 'Uno de dos: <code>Pi+</code> / <code>PiPi</code>; macho pallid <code>pldpld</code> / <code>pldino</code>',
+        'logic_conf_0' => 'Desconocido: portador recesivo oculto; loci enmascarados por INO',
+        'logic_edged_h' => 'Edged (Marbled)',
+        'logic_edged_1' => 'Autosómico recesivo. Solo <code>EdEd</code> es visible; <code>Ed+</code> es portador.',
+        'logic_edged_2' => 'Nombre ALBS: Edged Dilute. Nombre internacional: marbled (símbolo mb). “Edged Dilute” proviene de una mala traducción del neerlandés pastelgezoomd (edged pastel); no es una combinación de edged y diluido.',
+        'logic_edged_3' => 'El dominant edged de los inseparables de Fischer y enmascarados (ALBS: Spangled) es otra mutación, dominante.',
     ],
 
     'id' => [
@@ -1159,6 +1286,27 @@ const README_LANG = [
         'feat_ui_reorg' => 'Reorganisasi UI Perintah (v7.3.22)',
         'feat_ui_reorg_1' => 'Tata Letak Bagian: Diorganisir menjadi bagian "Hapus Peta Keluarga" dan "Snapshot Peta Keluarga"',
         'feat_ui_reorg_2' => 'Pembatasan Mode Demo: Hapus, Simpan, Muat, Impor dinonaktifkan dalam mode demo (ditampilkan dengan coretan)',
+
+        // 推定ロジック（v7.3）
+        'logic' => 'Logika Inferensi',
+        'logic_intro' => 'Cara hasil dihitung dan cara membacanya. Rumus dan contoh lengkap ada di README.md dan genetics_summary.txt.',
+        'logic_recomb_h' => 'Pautan: rekombinasi cinnamon–opaline 31,2%',
+        'logic_recomb' => 'Dari sumber hanya cin–ino 3% dan ino–op 30%. cin–op diturunkan dari keduanya tanpa interferensi: <code>0.03 + 0.30 − 2×0.03×0.30 = 0.312</code>. Penjumlahan biasa (33%) keliru menghitung pindah silang ganda, yang mengembalikan kombinasi induk, sebagai rekombinan.',
+        'logic_family_h' => 'Inferensi keluarga',
+        'logic_family_1' => 'Untuk setiap lokus, kandidat dipersempit dari burung itu sendiri → induk → anak → saudara, lalu dinormalisasi ke 100%.',
+        'logic_family_2' => 'Terpaut kelamin: anak betina menerima Z dari ayahnya. Anak jantan dari induk betina yang mengekspresikan selalu membawa alelnya.',
+        'logic_family_3' => 'Jika kedua induk tidak mengekspresikan lokus, anak diberi bobot rasio Mendel. Contoh: anak hijau dari hijau × hijau untuk dilute adalah <code>++</code> 50% / <code>+dil</code> 50%.',
+        'logic_family_4' => '“Tidak terekspresi” hanya dipakai jika nama warna terdefinisi. Dark, violet, dan lokus yang tertutup INO tidak dinilai. Kolom darkness induk belum digunakan.',
+        'logic_mingen_h' => 'Generasi minimum',
+        'logic_mingen' => 'Generasi untuk rute rencana: setiap mutasi dimasukkan dengan menjodohkan burung yang mengekspresikan dengan burung tipe liar; galur berjalan paralel lalu digabungkan. Tambah satu generasi jika ada genotipe target tanpa alel liar (homozigot resesif, betina terpaut kelamin, dll.). Jalan pintas, seperti menjodohkan dua burung yang mengekspresikan, tidak dihitung.',
+        'logic_conf_h' => 'Keyakinan dari fenotipe',
+        'logic_conf_100' => 'Pasti: resesif terekspresi, dominan tidak terekspresi (<code>++</code>), betina terpaut kelamin, dark/violet',
+        'logic_conf_50' => 'Salah satu dari dua: <code>Pi+</code> / <code>PiPi</code>; jantan pallid <code>pldpld</code> / <code>pldino</code>',
+        'logic_conf_0' => 'Tidak diketahui: split resesif tersembunyi; lokus tertutup INO',
+        'logic_edged_h' => 'Edged (Marbled)',
+        'logic_edged_1' => 'Resesif autosomal. Hanya <code>EdEd</code> yang tampak; <code>Ed+</code> adalah split.',
+        'logic_edged_2' => 'Nama ALBS: Edged Dilute. Nama internasional: marbled (simbol mb). “Edged Dilute” berasal dari salah terjemahan bahasa Belanda pastelgezoomd (edged pastel); bukan kombinasi edged dan dilute.',
+        'logic_edged_3' => 'Dominant edged pada lovebird Fischer dan Masked (ALBS: Spangled) adalah mutasi lain yang dominan.',
     ],
 
     'th' => [
@@ -1256,6 +1404,27 @@ const README_LANG = [
         'feat_ui_reorg' => 'การจัดระเบียบ UI คำสั่ง (v7.3.22)',
         'feat_ui_reorg_1' => 'เลย์เอาต์แบ่งส่วน: จัดเป็นส่วน "ล้างแผนผังครอบครัว" และ "สแนปช็อตแผนผังครอบครัว"',
         'feat_ui_reorg_2' => 'ข้อจำกัดโหมดสาธิต: ล้าง, บันทึก, โหลด, นำเข้า ถูกปิดใช้งานในโหมดสาธิต (แสดงแบบขีดฆ่า)',
+
+        // 推定ロジック（v7.3）
+        'logic' => 'ตรรกะการอนุมาน',
+        'logic_intro' => 'วิธีคำนวณผลลัพธ์และวิธีอ่านผล สูตรและตัวอย่างฉบับเต็มอยู่ใน README.md และ genetics_summary.txt',
+        'logic_recomb_h' => 'การเชื่อมโยง: อัตรารีคอมบิเนชัน cinnamon–opaline 31.2%',
+        'logic_recomb' => 'ค่าจากแหล่งอ้างอิงมีเพียง cin–ino 3% และ ino–op 30% ส่วน cin–op คำนวณจากสองค่านี้โดยไม่มีการรบกวน: <code>0.03 + 0.30 − 2×0.03×0.30 = 0.312</code> การบวกตรง ๆ (33%) นับครอสโอเวอร์คู่ซึ่งคืนชุดยีนแบบพ่อแม่ ว่าเป็นรีคอมบิแนนต์อย่างผิดพลาด',
+        'logic_family_h' => 'การอนุมานจากครอบครัว',
+        'logic_family_1' => 'แต่ละโลคัสจะคัดผู้สมัครจากตัวนกเอง → พ่อแม่ → ลูก → พี่น้อง แล้วปรับรวมเป็น 100%',
+        'logic_family_2' => 'ยีนเชื่อมเพศ: ลูกตัวเมียได้รับ Z จากพ่อ ลูกตัวผู้ของแม่ที่แสดงลักษณะจะมีอัลลีลของแม่เสมอ',
+        'logic_family_3' => 'ถ้าพ่อแม่ทั้งคู่ไม่แสดงลักษณะ จะถ่วงน้ำหนักด้วยอัตราส่วนเมนเดล ตัวอย่าง: ลูกสีเขียวจากเขียว × เขียว สำหรับไดลูท คือ <code>++</code> 50% / <code>+dil</code> 50%',
+        'logic_family_4' => '“ไม่แสดงลักษณะ” ใช้เฉพาะเมื่อชื่อสีมีในนิยาม ไม่ตัดสินสำหรับดาร์ก ไวโอเล็ต และโลคัสที่ถูก INO บดบัง ยังไม่ได้ใช้ค่า darkness ของพ่อแม่',
+        'logic_mingen_h' => 'จำนวนรุ่นขั้นต่ำ',
+        'logic_mingen' => 'จำนวนรุ่นตามเส้นทางของแผน: นำแต่ละการกลายพันธุ์เข้ามาโดยผสมนกที่แสดงลักษณะกับนกพันธุ์ป่า ดำเนินแต่ละสายคู่ขนานแล้วรวมกัน เพิ่มอีกหนึ่งรุ่นหากจีโนไทป์เป้าหมายไม่มีอัลลีลป่า (โฮโมไซกัสด้อย ตัวเมียยีนเชื่อมเพศ ฯลฯ) ไม่นับทางลัด เช่น การผสมนกที่แสดงลักษณะสองตัวโดยตรง',
+        'logic_conf_h' => 'ความเชื่อมั่นจากฟีโนไทป์',
+        'logic_conf_100' => 'ยืนยัน: ลักษณะด้อยที่แสดงออก ลักษณะเด่นที่ไม่แสดง (<code>++</code>) ตัวเมียยีนเชื่อมเพศ ดาร์ก/ไวโอเล็ต',
+        'logic_conf_50' => 'หนึ่งในสองแบบ: <code>Pi+</code> / <code>PiPi</code>; ตัวผู้พาลลิด <code>pldpld</code> / <code>pldino</code>',
+        'logic_conf_0' => 'ไม่ทราบ: สปลิตด้อยที่ซ่อนอยู่ โลคัสที่ถูก INO บดบัง',
+        'logic_edged_h' => 'Edged (Marbled)',
+        'logic_edged_1' => 'ยีนด้อยบนออโตโซม เฉพาะ <code>EdEd</code> ที่มองเห็น ส่วน <code>Ed+</code> เป็นสปลิต',
+        'logic_edged_2' => 'ชื่อ ALBS: Edged Dilute ชื่อสากล: marbled (สัญลักษณ์ mb) “Edged Dilute” มาจากการแปลผิดของคำดัตช์ pastelgezoomd (edged pastel) ไม่ใช่การรวมกันของ edged กับไดลูท',
+        'logic_edged_3' => 'dominant edged ในเลิฟเบิร์ดฟิชเชอร์และมาสก์ (ALBS: Spangled) เป็นการกลายพันธุ์อีกชนิดที่เป็นลักษณะเด่น',
     ],
 
     'pt' => [
@@ -1353,6 +1522,27 @@ const README_LANG = [
         'feat_ui_reorg' => 'Reorganização de UI de Comandos (v7.3.22)',
         'feat_ui_reorg_1' => 'Layout por seções: Organizado em seções "Limpar Mapa Familiar" e "Snapshot do Mapa Familiar"',
         'feat_ui_reorg_2' => 'Restrições do modo demo: Limpar, Salvar, Carregar, Importar desabilitados no modo demo (mostrados riscados)',
+
+        // 推定ロジック（v7.3）
+        'logic' => 'Lógica de inferência',
+        'logic_intro' => 'Como os resultados são calculados e como lê-los. Fórmulas e exemplos completos em README.md e genetics_summary.txt.',
+        'logic_recomb_h' => 'Ligação: recombinação canela–opalino 31,2%',
+        'logic_recomb' => 'Da fonte vêm apenas cin–ino 3% e ino–op 30%. cin–op é derivado deles sem interferência: <code>0.03 + 0.30 − 2×0.03×0.30 = 0.312</code>. A soma simples (33%) conta erradamente como recombinantes os duplos crossing-over, que restauram a combinação parental.',
+        'logic_family_h' => 'Inferência familiar',
+        'logic_family_1' => 'Para cada locus, os candidatos são reduzidos pela própria ave → pais → filhos → irmãos, e depois normalizados para 100%.',
+        'logic_family_2' => 'Ligado ao sexo: uma filha recebe o Z do pai. Um filho de uma mãe que o expressa sempre carrega o alelo dela.',
+        'logic_family_3' => 'Se nenhum dos pais expressa o locus, o filhote é ponderado pelas proporções mendelianas. Exemplo: um filhote verde de verde × verde é <code>++</code> 50% / <code>+dil</code> 50% para diluído.',
+        'logic_family_4' => '“Não expresso” só é usado quando o nome da cor está definido. Fator escuro, violeta e loci mascarados pelo INO não são avaliados. O campo darkness dos pais ainda não é usado.',
+        'logic_mingen_h' => 'Gerações mínimas',
+        'logic_mingen' => 'Gerações para a rota do plano: cada mutação é introduzida cruzando uma ave que a expressa com uma ave ancestral; as linhagens seguem em paralelo e são unidas. Soma-se uma geração se algum genótipo alvo não tiver alelo selvagem (homozigoto recessivo, fêmea ligada ao sexo etc.). Atalhos, como cruzar duas aves que expressam, não são contados.',
+        'logic_conf_h' => 'Confiança pelo fenótipo',
+        'logic_conf_100' => 'Confirmado: recessivo expresso, dominante não expresso (<code>++</code>), fêmea ligada ao sexo, escuro/violeta',
+        'logic_conf_50' => 'Um de dois: <code>Pi+</code> / <code>PiPi</code>; macho pallid <code>pldpld</code> / <code>pldino</code>',
+        'logic_conf_0' => 'Desconhecido: portador recessivo oculto; loci mascarados pelo INO',
+        'logic_edged_h' => 'Edged (Marbled)',
+        'logic_edged_1' => 'Autossômico recessivo. Apenas <code>EdEd</code> é visível; <code>Ed+</code> é portador.',
+        'logic_edged_2' => 'Nome ALBS: Edged Dilute. Nome internacional: marbled (símbolo mb). “Edged Dilute” vem de uma tradução errada do holandês pastelgezoomd (edged pastel); não é uma combinação de edged e diluído.',
+        'logic_edged_3' => 'O dominant edged dos agapornis fischeri e personata (ALBS: Spangled) é outra mutação, dominante.',
     ],
 
     // ============================================================
@@ -1467,6 +1657,27 @@ const README_LANG = [
         'feat_ui_reorg' => 'Commando UI Reorganisatie (v7.3.22)',
         'feat_ui_reorg_1' => 'Sectie-indeling: Georganiseerd in "Familiekaart Wissen" en "Familiekaart Snapshot" secties',
         'feat_ui_reorg_2' => 'Demomodus beperkingen: Wissen, Opslaan, Laden, Importeren uitgeschakeld in demomodus (doorgestreept weergegeven)',
+
+        // 推定ロジック（v7.3）
+        'logic' => 'Inferentielogica',
+        'logic_intro' => 'Hoe de resultaten berekend worden en hoe je ze leest. Volledige formules en voorbeelden staan in README.md en genetics_summary.txt.',
+        'logic_recomb_h' => 'Koppeling: recombinatie cinnamon–opaline 31,2%',
+        'logic_recomb' => 'Uit de bron komen alleen cin–ino 3% en ino–op 30%. cin–op wordt daaruit afgeleid zonder interferentie: <code>0.03 + 0.30 − 2×0.03×0.30 = 0.312</code>. Eenvoudig optellen (33%) telt dubbele crossovers, die de ouderlijke combinatie herstellen, ten onrechte als recombinanten.',
+        'logic_family_h' => 'Familie-inferentie',
+        'logic_family_1' => 'Per locus worden de kandidaten beperkt via de vogel zelf → ouders → nakomelingen → broers en zussen, en daarna genormaliseerd naar 100%.',
+        'logic_family_2' => 'Geslachtsgebonden: een dochter krijgt de Z van haar vader. Een zoon van een moeder die het kenmerk toont, draagt altijd haar allel.',
+        'logic_family_3' => 'Als geen van beide ouders een locus toont, wordt het jong gewogen volgens de Mendelverhoudingen. Voorbeeld: een groen jong uit groen × groen is voor dilute <code>++</code> 50% / <code>+dil</code> 50%.',
+        'logic_family_4' => '„Niet zichtbaar” wordt alleen gebruikt als de kleurnaam gedefinieerd is. Donkerfactor, violet en door INO gemaskeerde loci worden niet beoordeeld. Het veld darkness van de ouders wordt nog niet gebruikt.',
+        'logic_mingen_h' => 'Minimaal aantal generaties',
+        'logic_mingen' => 'Generaties voor de route van het plan: elke mutatie wordt ingebracht door een vogel die haar toont te paren met een wildkleur; de lijnen lopen parallel en worden samengevoegd. Eén generatie extra als een doelgenotype geen wildallel heeft (recessief homozygoot, geslachtsgebonden pop enz.). Kortere wegen, zoals twee vogels die het kenmerk tonen direct paren, worden niet meegeteld.',
+        'logic_conf_h' => 'Zekerheid op basis van het fenotype',
+        'logic_conf_100' => 'Bevestigd: zichtbaar recessief, dominant niet zichtbaar (<code>++</code>), geslachtsgebonden pop, donkerfactor/violet',
+        'logic_conf_50' => 'Een van twee: <code>Pi+</code> / <code>PiPi</code>; pallid-man <code>pldpld</code> / <code>pldino</code>',
+        'logic_conf_0' => 'Onbekend: verborgen recessief split; door INO gemaskeerde loci',
+        'logic_edged_h' => 'Edged (Marbled)',
+        'logic_edged_1' => 'Autosomaal recessief. Alleen <code>EdEd</code> is zichtbaar; <code>Ed+</code> is split.',
+        'logic_edged_2' => 'ALBS-naam: Edged Dilute. Internationale naam: marbled (symbool mb). „Edged Dilute” komt van een foute vertaling van pastelgezoomd (edged pastel); het is geen combinatie van gezoomd en dilute.',
+        'logic_edged_3' => 'Dominant gezoomd (dominant edged) bij Fischers en zwartmaskers (ALBS: Spangled) is een andere, dominante mutatie.',
     ],
 
     // ============================================================
@@ -1581,5 +1792,26 @@ const README_LANG = [
         'feat_ui_reorg' => 'Command UI Reorganization (v7.3.22)',
         'feat_ui_reorg_1' => 'Section layout: Inayos sa "Clear Family Map" at "Family Map Snapshot" na mga seksyon',
         'feat_ui_reorg_2' => 'Mga paghihigpit sa demo mode: Hindi pinagana ang Clear, Save, Load, Import sa demo mode (ipinapakita na may salungguhit)',
+
+        // 推定ロジック（v7.3）
+        'logic' => 'Lohika ng Pagtantiya',
+        'logic_intro' => 'Paano kinukuwenta ang mga resulta at paano basahin ang mga ito. Ang buong pormula at halimbawa ay nasa README.md at genetics_summary.txt.',
+        'logic_recomb_h' => 'Linkage: recombination ng cinnamon–opaline 31.2%',
+        'logic_recomb' => 'Mula sa sanggunian ay cin–ino 3% at ino–op 30% lamang. Ang cin–op ay hinango mula sa dalawang ito nang walang interference: <code>0.03 + 0.30 − 2×0.03×0.30 = 0.312</code>. Ang simpleng pagdaragdag (33%) ay maling nagbibilang sa double crossover, na nagbabalik sa kombinasyon ng magulang, bilang recombinant.',
+        'logic_family_h' => 'Pagtantiya mula sa pamilya',
+        'logic_family_1' => 'Sa bawat locus, pinapakitid ang mga kandidato mula sa ibon mismo → magulang → anak → kapatid, saka ginagawang 100% ang kabuuan.',
+        'logic_family_2' => 'Sex-linked: tinatanggap ng anak na babae ang Z ng ama. Ang anak na lalaki ng inang nagpapakita ng katangian ay laging may allele ng ina.',
+        'logic_family_3' => 'Kapag walang magulang na nagpapakita ng locus, tinitimbang ang anak ayon sa Mendelian ratio. Halimbawa: ang berdeng sisiw mula sa berde × berde ay <code>++</code> 50% / <code>+dil</code> 50% sa dilute.',
+        'logic_family_4' => 'Ginagamit lamang ang “hindi nagpapakita” kapag nakatakda ang pangalan ng kulay. Hindi hinuhusgahan ang dark, violet at mga locus na tinatakpan ng INO. Hindi pa ginagamit ang darkness ng mga magulang.',
+        'logic_mingen_h' => 'Pinakamababang bilang ng henerasyon',
+        'logic_mingen' => 'Mga henerasyon para sa ruta ng plano: bawat mutasyon ay ipinapasok sa pagpapares ng ibong nagpapakita nito sa wild-type; sabay-sabay ang mga linya at pagkatapos ay pinagsasama. Nadadagdagan ng isang henerasyon kung may target na genotype na walang wild allele (recessive homozygote, sex-linked na babae, atbp.). Hindi binibilang ang mga shortcut gaya ng direktang pagpapares ng dalawang ibong nagpapakita.',
+        'logic_conf_h' => 'Kumpiyansa mula sa phenotype',
+        'logic_conf_100' => 'Kumpirmado: nakikitang recessive, dominanteng hindi nakikita (<code>++</code>), sex-linked na babae, dark/violet',
+        'logic_conf_50' => 'Isa sa dalawa: <code>Pi+</code> / <code>PiPi</code>; lalaking pallid <code>pldpld</code> / <code>pldino</code>',
+        'logic_conf_0' => 'Hindi alam: nakatagong recessive split; mga locus na tinatakpan ng INO',
+        'logic_edged_h' => 'Edged (Marbled)',
+        'logic_edged_1' => 'Autosomal recessive. <code>EdEd</code> lamang ang nakikita; split ang <code>Ed+</code>.',
+        'logic_edged_2' => 'Pangalan sa ALBS: Edged Dilute. Internasyonal na pangalan: marbled (simbolo mb). Ang “Edged Dilute” ay mula sa maling salin ng Dutch na pastelgezoomd (edged pastel); hindi ito kombinasyon ng edged at dilute.',
+        'logic_edged_3' => 'Ang dominant edged ng Fischer’s at Masked lovebird (ALBS: Spangled) ay ibang mutasyon na dominante.',
     ],
 ];

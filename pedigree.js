@@ -166,9 +166,10 @@ const PedigreeGenerator = {
         const observed = bird.observed || {};
         const alleles = geno[locus];
         
-        // 表現型から確定
-        if (this.isConfirmedByPhenotype(observed, locus, bird.sex)) {
-            return { confidence: 100, source: 'phenotype' };
+        // 表現型から確定（100）または2通りまで絞れる（50）
+        const phenoConfidence = this.phenotypeConfidence(observed, locus, bird.sex);
+        if (phenoConfidence > 0) {
+            return { confidence: phenoConfidence, source: 'phenotype' };
         }
         
         // 遺伝子型が設定されている
@@ -188,32 +189,78 @@ const PedigreeGenerator = {
     },
 
     /**
-     * 表現型から遺伝子型が確定できるか
+     * 遺伝子型文字列をアレル配列に分解（genetics.php AgapornisLoci::splitGenotype と同じ規則）
      */
-    isConfirmedByPhenotype(observed, locus, sex) {
-        const baseColor = observed.baseColor || '';
-        const eyeColor = observed.eyeColor || '';
-        const darkness = observed.darkness || '';
-        
-        // COLOR_MASTER から該当色の genotype を取得
-        if (typeof COLOR_MASTER !== 'undefined' && COLOR_MASTER[baseColor]) {
-            const defGeno = COLOR_MASTER[baseColor].genotype || {};
-            if (defGeno[locus]) {
-                return true; // その座位が定義に含まれている = 確定
+    splitGenotype(locus, genotype) {
+        const def = (typeof LOCI_MASTER !== 'undefined') ? LOCI_MASTER[locus] : null;
+        const names = def ? Object.keys(def.alleles || {}) : [];
+        if (!names.length || typeof genotype !== 'string') return null;
+        if (locus === 'edged') genotype = genotype.replace(/ed/g, 'Ed');
+        if (genotype.endsWith('W')) {
+            const a = genotype.slice(0, -1);
+            return names.includes(a) ? [a] : null;
+        }
+        for (const a of names) {
+            for (const b of names) {
+                if (a + b === genotype) return [a, b];
             }
         }
-        
-        // ダークファクターは darkness から確定
-        if (locus === 'dark' && darkness && darkness !== 'unknown') {
-            return true;
+        return null;
+    },
+
+    /**
+     * アレルの組が表現型に現れるか（AgapornisLoci::isExpressedAlleles と同じ規則）
+     */
+    isExpressedAlleles(locus, alleles) {
+        const def = LOCI_MASTER[locus] || {};
+        const wild = Object.keys(def.alleles || {}).find(a => def.alleles[a] === 0);
+        const mutant = alleles.filter(a => a !== wild);
+        if (def.type === 'AD' || def.type === 'AID') return mutant.length > 0;
+        return alleles.length > 0 && mutant.length === alleles.length;
+    },
+
+    /**
+     * 表現型だけから遺伝子型をどこまで確定できるか
+     * genetics.php GenotypeEstimator::phenotypeConfidence と同じ規則:
+     *   100 確定 / 50 見た目が同じ2通り（Pi+ と PiPi、パリッドのオスの pldpld と pldino）/ 0 判別不能
+     */
+    phenotypeConfidence(observed, locus, sex) {
+        const baseColor = observed.baseColor || '';
+        const darkness = observed.darkness || '';
+
+        // ダークファクターは darkness 入力から確定
+        if (locus === 'dark' && darkness && darkness !== 'unknown') return 100;
+        // 赤目だけでは INO と確定しない（ファローも赤目）。色名の定義から判定する。
+
+        const colorDef = (typeof COLOR_MASTER !== 'undefined') ? COLOR_MASTER[baseColor] : null;
+        const lociDef = (typeof LOCI_MASTER !== 'undefined') ? LOCI_MASTER[locus] : null;
+        if (!colorDef || !lociDef) return 0;
+
+        const defGeno = colorDef.genotype || {};
+        const isFemale = sex === 'female';
+        const isSexLinked = !!lociDef.sex_linked;
+        const wild = Object.keys(lociDef.alleles || {}).find(a => lociDef.alleles[a] === 0) || '+';
+        let value = defGeno[locus] || (isSexLinked && isFemale ? wild + 'W' : wild + wild);
+        if (isSexLinked && isFemale) {
+            // 色定義はオス表記（inoino など）なので、メスはヘミ接合（inoW）に読み替える
+            const homo = this.splitGenotype(locus, value);
+            if (homo && homo.length === 2 && homo[0] === homo[1]) value = homo[0] + 'W';
         }
-        
-        // INOは目の色から確定
-        if (locus === 'ino' && eyeColor === 'red') {
-            return true;
+        const alleles = this.splitGenotype(locus, value);
+        if (!alleles) return 0;
+        const type = lociDef.type || 'AR';
+
+        if (this.isExpressedAlleles(locus, alleles)) {
+            if (type === 'AD') return 50;
+            if (locus === 'ino' && !isFemale && value === 'pldpld') return 50;
+            return 100;
         }
-        
-        return false;
+        // INO は他の座位の見た目を覆い隠す
+        const inoMasked = ['inoino', 'inoW'].includes(defGeno.ino) && !['ino', 'parblue', 'dark'].includes(locus);
+        if (inoMasked) return 0;
+        if (type === 'AD' || type === 'AID') return 100;   // 優性が出ていない → 野生型で確定
+        if (isSexLinked && isFemale) return 100;             // メスは隠れキャリアがいない
+        return 0;                                            // 劣性のスプリットは判別できない
     },
 
     /**
@@ -222,6 +269,7 @@ const PedigreeGenerator = {
     formatConfidenceDisplay(confidence, source) {
         const T = window.T || {};
         if (source === 'phenotype') {
+            if (confidence === 50) return T.two_possible || 'One of two';
             return T.confirmed_phenotype || '✓ Confirmed (phenotype)';
         }
         if (confidence === 100) {

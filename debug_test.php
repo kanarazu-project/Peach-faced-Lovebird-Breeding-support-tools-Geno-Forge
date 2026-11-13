@@ -2027,6 +2027,42 @@ if ($runTests) {
         return [$ok, sprintf('type=%s, Ed+ x Ed+ -> Edged %.1f%%', $type, $edged * 100)];
     });
 
+    // Test 22-9: 確信度50のときは、見た目が同じ2通りを候補として返す
+    $reg('GenotypeEstimator: alternatives for confidence 50', function () use ($locusOf) {
+        $est = new GenotypeEstimator();
+        $pied = $locusOf($est->estimate('male', 'pied_dom_green', 'black', 'none')['loci'], 'pied_dom');
+        $pallid = $locusOf($est->estimate('male', 'pallid_green', 'black', 'none')['loci'], 'ino');
+        $pallidF = $locusOf($est->estimate('female', 'pallid_green', 'black', 'none')['loci'], 'ino');
+        $ok = ($pied['alternatives'] ?? null) === ['Pi+', 'PiPi']
+            && ($pallid['alternatives'] ?? null) === ['pldpld', 'pldino'] && ($pallid['confidence'] ?? null) === 50
+            && ($pallidF['confidence'] ?? null) === 100 && ($pallidF['alternatives'] ?? null) === [];
+        return [$ok, 'pied♂=' . json_encode($pied['alternatives'] ?? null) . ' pallid♂=' . json_encode($pallid['alternatives'] ?? null)
+            . ' pallid♀ conf=' . ($pallidF['confidence'] ?? '?')];
+    });
+
+    // Test 22-10: アプリ内READMEは全11言語でキー名をそのまま表示せず、未知の言語コードを受け付けない
+    $reg('README i18n: no raw keys in any language, lang whitelisted', function () {
+        require_once 'readme_lang.php';
+        preg_match_all("/rt\\('([a-z0-9_]+)'\\)/", file_get_contents('readme.php'), $m);
+        $keys = array_unique($m[1]);
+        $unresolved = [];
+        foreach (array_keys(README_LANG) as $lang) {
+            foreach ($keys as $k) {
+                if (!isset(README_LANG[$lang][$k]) && !isset(README_LANG['en'][$k]) && !isset(README_LANG['ja'][$k])) {
+                    $unresolved[] = "$lang:$k";
+                }
+            }
+        }
+        $saved = $_GET['lang'] ?? null;
+        $_GET['lang'] = '"><script>alert(1)</script>';
+        $evil = getReadmeLang();
+        $_GET['lang'] = 'th';
+        $th = getReadmeLang();
+        if ($saved === null) unset($_GET['lang']); else $_GET['lang'] = $saved;
+        $ok = !$unresolved && $evil === 'ja' && $th === 'th' && count(README_LANG) === 11;
+        return [$ok, count($keys) . ' keys x ' . count(README_LANG) . ' langs, unresolved=' . count($unresolved) . ", evil lang -> {$evil}"];
+    });
+
     // Test 22-7: 確信度は表現型から判別できる度合いを反映する
     $reg('GenotypeEstimator: confidence reflects what phenotype can determine', function () use ($locusOf) {
         $est = new GenotypeEstimator();

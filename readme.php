@@ -3,7 +3,7 @@ require_once 'readme_lang.php';
 $lang = getReadmeLang();
 ?>
 <!DOCTYPE html>
-<html lang="<?= $lang ?>">
+<html lang="<?= htmlspecialchars($lang) ?>">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -214,7 +214,7 @@ php -S localhost:8000</code></pre>
 <tr><td>Dominant Pied</td><td><code>++</code></td><td><code>Pi+</code>, <code>PiPi</code></td></tr>
 <tr><td>Recessive Pied</td><td><code>++</code></td><td><code>+pi</code>, <code>pipi</code></td></tr>
 <tr><td>Dilute</td><td><code>++</code></td><td><code>+dil</code>, <code>dildil</code></td></tr>
-<tr><td>Edged</td><td><code>++</code></td><td><code>+ed</code>, <code>eded</code></td></tr>
+<tr><td>Edged</td><td><code>++</code></td><td><code>Ed+</code>, <code>EdEd</code></td></tr>
 <tr><td>Orangeface</td><td><code>++</code></td><td><code>+of</code>, <code>ofof</code></td></tr>
 <tr><td>Pale Headed</td><td><code>++</code></td><td><code>+ph</code>, <code>phph</code></td></tr>
 <tr><td>Pale Fallow</td><td><code>++</code></td><td><code>+flp</code>, <code>flpflp</code></td></tr>
@@ -228,6 +228,47 @@ php -S localhost:8000</code></pre>
 <tr><td>Opaline</td><td><code>++</code></td><td><code>+op</code>, <code>opop</code></td><td><code>+W</code></td><td><code>opW</code></td></tr>
 <tr><td>Cinnamon</td><td><code>++</code></td><td><code>+cin</code>, <code>cincin</code></td><td><code>+W</code></td><td><code>cinW</code></td></tr>
 </table>
+
+<hr>
+
+<h2>🧮 <?= rt('logic') ?></h2>
+<p><?= rt('logic_intro') ?></p>
+
+<h3><?= rt('logic_recomb_h') ?></h3>
+<p><?= rt('logic_recomb') ?></p>
+
+<h3><?= rt('logic_family_h') ?></h3>
+<ul>
+<li><?= rt('logic_family_1') ?></li>
+<li><?= rt('logic_family_2') ?></li>
+<li><?= rt('logic_family_3') ?></li>
+<li><?= rt('logic_family_4') ?></li>
+</ul>
+
+<h3><?= rt('logic_mingen_h') ?></h3>
+<p><?= rt('logic_mingen') ?></p>
+<p><code>minGenerations = 1 + ⌈log₂ n⌉ + (fixation ? 1 : 0)</code> &nbsp;(n = mutant loci; wild type = 0)</p>
+<table>
+<tr><th>Target</th><th>n</th><th>minGenerations</th></tr>
+<tr><td>Green</td><td>0</td><td>0</td></tr>
+<tr><td>Dominant Pied Green</td><td>1</td><td>1</td></tr>
+<tr><td>Lutino / Dilute Green</td><td>1</td><td>2</td></tr>
+<tr><td>Pure White</td><td>2</td><td>3</td></tr>
+</table>
+
+<h3><?= rt('logic_conf_h') ?></h3>
+<table>
+<tr><td><strong>100</strong></td><td><?= rt('logic_conf_100') ?></td></tr>
+<tr><td><strong>50</strong></td><td><?= rt('logic_conf_50') ?></td></tr>
+<tr><td><strong>0</strong></td><td><?= rt('logic_conf_0') ?></td></tr>
+</table>
+
+<h3><?= rt('logic_edged_h') ?></h3>
+<ul>
+<li><?= rt('logic_edged_1') ?></li>
+<li><?= rt('logic_edged_2') ?></li>
+<li><?= rt('logic_edged_3') ?></li>
+</ul>
 
 <hr>
 

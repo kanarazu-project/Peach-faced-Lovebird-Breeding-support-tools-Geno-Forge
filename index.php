@@ -48,6 +48,15 @@ if (isset($_GET['lang']) && in_array($_GET['lang'], ['ja', 'en', 'de', 'fr', 'it
 }
 
 /**
+ * エッジドの入力値を正規の表記（Ed）にそろえる
+ * 旧表記（+ed, ed+, eded）や +Ed で保存・共有されたURLでも、選択欄が正しく復元されるようにする。
+ */
+function normalizeEdgedInput(string $value): string {
+    $map = ['+ed' => 'Ed+', 'ed+' => 'Ed+', '+Ed' => 'Ed+', 'eded' => 'EdEd'];
+    return $map[$value] ?? $value;
+}
+
+/**
  * 共通：表現型選択肢を生成
  * 全画面で統一された選択肢を使用
  * v6.7.4: 全ラベルをt()関数経由に変更
@@ -1336,7 +1345,7 @@ $fPidom = $_REQUEST['f_pidom'] ?? '++';
 $fFlp = $_REQUEST['f_flp'] ?? '++';
 $fFlb = $_REQUEST['f_flb'] ?? '++';
 $fDil = $_REQUEST['f_dil'] ?? '++';
-$fEd = $_REQUEST['f_ed'] ?? '++';
+$fEd = normalizeEdgedInput($_REQUEST['f_ed'] ?? '++');
 $fOf = $_REQUEST['f_of'] ?? '++';
 $fPh = $_REQUEST['f_ph'] ?? '++';
 $mVio = $_REQUEST['m_vio'] ?? 'vv';
@@ -1344,7 +1353,7 @@ $mPidom = $_REQUEST['m_pidom'] ?? '++';
 $mFlp = $_REQUEST['m_flp'] ?? '++';
 $mFlb = $_REQUEST['m_flb'] ?? '++';
 $mDil = $_REQUEST['m_dil'] ?? '++';
-$mEd = $_REQUEST['m_ed'] ?? '++';
+$mEd = normalizeEdgedInput($_REQUEST['m_ed'] ?? '++');
 $mOf = $_REQUEST['m_of'] ?? '++';
 $mPh = $_REQUEST['m_ph'] ?? '++';
                 ?>
@@ -1397,7 +1406,7 @@ $mPh = $_REQUEST['m_ph'] ?? '++';
 <div class="form-group"><label>Pale Fallow</label><select name="f_flp"><?php foreach(['++'=>'+/+','+flp'=>'+/flp','flpflp'=>'flp/flp'] as $v=>$l){echo '<option value="'.$v.'"'.(($fFlp??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
 <div class="form-group"><label>Bronze Fallow</label><select name="f_flb"><?php foreach(['++'=>'+/+','+flb'=>'+/flb','flbflb'=>'flb/flb'] as $v=>$l){echo '<option value="'.$v.'"'.(($fFlb??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
 <div class="form-group"><label>Dilute</label><select name="f_dil"><?php foreach(['++'=>'+/+','+dil'=>'+/dil','dildil'=>'dil/dil'] as $v=>$l){echo '<option value="'.$v.'"'.(($fDil??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Edged</label><select name="f_ed"><?php foreach(['++'=>'+/+','+ed'=>'+/ed','eded'=>'ed/ed'] as $v=>$l){echo '<option value="'.$v.'"'.(($fEd??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
+<div class="form-group"><label>Edged</label><select name="f_ed"><?php foreach(['++'=>'+/+','Ed+'=>'Ed/+','EdEd'=>'Ed/Ed'] as $v=>$l){echo '<option value="'.$v.'"'.(($fEd??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
 <div class="form-group"><label>Orangeface</label><select name="f_of"><?php foreach(['++'=>'+/+','+of'=>'+/of','ofof'=>'of/of'] as $v=>$l){echo '<option value="'.$v.'"'.(($fOf??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
 <div class="form-group"><label>Pale Headed</label><select name="f_ph"><?php foreach(['++'=>'+/+','+ph'=>'+/ph','phph'=>'ph/ph'] as $v=>$l){echo '<option value="'.$v.'"'.(($fPh??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
                     </div>                  
@@ -1446,7 +1455,7 @@ $mPh = $_REQUEST['m_ph'] ?? '++';
 <div class="form-group"><label>Pale Fallow</label><select name="m_flp"><?php foreach(['++'=>'+/+','+flp'=>'+/flp','flpflp'=>'flp/flp'] as $v=>$l){echo '<option value="'.$v.'"'.(($mFlp??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
 <div class="form-group"><label>Bronze Fallow</label><select name="m_flb"><?php foreach(['++'=>'+/+','+flb'=>'+/flb','flbflb'=>'flb/flb'] as $v=>$l){echo '<option value="'.$v.'"'.(($mFlb??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
 <div class="form-group"><label>Dilute</label><select name="m_dil"><?php foreach(['++'=>'+/+','+dil'=>'+/dil','dildil'=>'dil/dil'] as $v=>$l){echo '<option value="'.$v.'"'.(($mDil??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Edged</label><select name="m_ed"><?php foreach(['++'=>'+/+','+ed'=>'+/ed','eded'=>'ed/ed'] as $v=>$l){echo '<option value="'.$v.'"'.(($mEd??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
+<div class="form-group"><label>Edged</label><select name="m_ed"><?php foreach(['++'=>'+/+','Ed+'=>'Ed/+','EdEd'=>'Ed/Ed'] as $v=>$l){echo '<option value="'.$v.'"'.(($mEd??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
 <div class="form-group"><label>Orangeface</label><select name="m_of"><?php foreach(['++'=>'+/+','+of'=>'+/of','ofof'=>'of/of'] as $v=>$l){echo '<option value="'.$v.'"'.(($mOf??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
 <div class="form-group"><label>Pale Headed</label><select name="m_ph"><?php foreach(['++'=>'+/+','+ph'=>'+/ph','phph'=>'ph/ph'] as $v=>$l){echo '<option value="'.$v.'"'.(($mPh??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
                         </div>
@@ -1795,15 +1804,18 @@ $mPh = $_REQUEST['m_ph'] ?? '++';
                         <?php foreach($result['loci'] as $l): ?>
 <?php
     $isConfirmed = $l['isConfirmed'] ?? false;
-    $bgColor = $isConfirmed ? 'rgba(78,205,196,0.15)' : 'rgba(255,255,255,0.03)';
-    $borderLeft = $isConfirmed ? '3px solid #4ecdc4' : '3px solid #555';
-    // 確定: 遺伝型を表示、不明: "?" を表示
-    $displayGenotype = $isConfirmed ? htmlspecialchars($l['genotype']) : '?';
-    $confidenceLabel = $isConfirmed ? '✓ ' . t('confirmed') : t('unknown');
+    $alternatives = $l['alternatives'] ?? [];
+    $isNarrowed = !$isConfirmed && count($alternatives) > 1;   // 確信度50: 見た目が同じ2通りまで絞れている
+    $bgColor = $isConfirmed ? 'rgba(78,205,196,0.15)' : ($isNarrowed ? 'rgba(78,205,196,0.06)' : 'rgba(255,255,255,0.03)');
+    $borderLeft = $isConfirmed ? '3px solid #4ecdc4' : ($isNarrowed ? '3px dashed #4ecdc4' : '3px solid #555');
+    // 確定: 遺伝型、2通り: 候補を並べる、不明: "?"
+    $displayGenotype = $isConfirmed ? htmlspecialchars($l['genotype'])
+        : ($isNarrowed ? htmlspecialchars(implode(' / ', $alternatives)) : '?');
+    $confidenceLabel = $isConfirmed ? '✓ ' . t('confirmed') : ($isNarrowed ? t('two_possible') : t('unknown'));
 ?>
 <div style="padding:0.5rem;margin:0.25rem 0;background:<?= $bgColor ?>;border-radius:4px;border-left:<?= $borderLeft ?>;">
     <strong style="color:<?= $isConfirmed ? '#4ecdc4' : '#888' ?>;"><?= htmlspecialchars($l['locusName'] ?? $l['locusKey'] ?? '?') ?>:</strong>
-    <span style="color:<?= $isConfirmed ? '#e0e0e0' : '#666' ?>;"><?= $displayGenotype ?></span>
+    <span style="color:<?= ($isConfirmed || $isNarrowed) ? '#e0e0e0' : '#666' ?>;"><?= $displayGenotype ?></span>
     <span style="font-size:0.75rem;color:#888;margin-left:0.5rem;"><?= $confidenceLabel ?></span>
 </div>
 <?php endforeach; ?>

@@ -5147,7 +5147,7 @@ public function estimate(string $sex, string $baseColor, string $eyeColor, strin
                 $wild = AgapornisLoci::wildAllele($locusKey) ?? '+';
                 $genoValue = ($isSexLinked && $isFemale) ? $wild . 'W' : $wild . $wild;
             }
-            [$confidence, $isConfirmed] = $this->phenotypeConfidence($locusKey, $config, $genoValue, $isSexLinked, $isFemale, $genotype);
+            [$confidence, $isConfirmed, $alternatives] = $this->phenotypeConfidence($locusKey, $config, $genoValue, $isSexLinked, $isFemale, $genotype);
 
             $results[] = [
                 'locusKey' => $locusKey,
@@ -5155,6 +5155,7 @@ public function estimate(string $sex, string $baseColor, string $eyeColor, strin
                 'genotype' => $genoValue,
                 'isConfirmed' => $isConfirmed,
                 'confidence' => $confidence,
+                'alternatives' => $alternatives,
                 'isSexLinked' => $isSexLinked,
             ];
         }        
@@ -5176,28 +5177,35 @@ public function estimate(string $sex, string $baseColor, string $eyeColor, strin
      *  50: 見た目が同じ2通りがある（ドミナントパイドの Pi+ と PiPi、パリッドのオスの pldpld と pldino）
      *   0: 表現型からは判別できない（劣性の隠れスプリット、INO に隠された座位）
      *
-     * @return array{0:int,1:bool} [確信度, 確定か]
+     * @return array{0:int,1:bool,2:array} [確信度, 確定か, 見た目が同じ遺伝子型の候補（50 のときだけ）]
      */
     private function phenotypeConfidence(string $locusKey, array $config, string $genoValue, bool $isSexLinked, bool $isFemale, array $genotype): array
     {
         $alleles = AgapornisLoci::splitGenotype($locusKey, $genoValue);
-        if ($alleles === null) return [0, false];
+        if ($alleles === null) return [0, false, []];
         $type = $config['type'] ?? 'AR';
 
         if (AgapornisLoci::isExpressedAlleles($locusKey, $alleles)) {
-            if ($type === 'AD') return [50, false];
-            if ($locusKey === 'ino' && !$isFemale && $genoValue === 'pldpld') return [50, false];
-            return [100, true];
+            if ($type === 'AD') {
+                // 優性はヘテロとホモが同じ見た目（例: Pi+ / PiPi）
+                $wild = AgapornisLoci::wildAllele($locusKey) ?? '+';
+                $mutant = current(array_filter($alleles, fn($a) => $a !== $wild));
+                return [50, false, [$mutant . $wild, $mutant . $mutant]];
+            }
+            if ($locusKey === 'ino' && !$isFemale && $genoValue === 'pldpld') {
+                return [50, false, ['pldpld', 'pldino']];   // パリッドは ino より優位で、pldino もパリッドに見える
+            }
+            return [100, true, []];
         }
 
         // INO は他の座位の見た目を覆い隠す（parblue は色名で、dark は入力で決まるので除外）
         $inoMasked = in_array($genotype['ino'] ?? '', ['inoino', 'inoW'], true)
             && !in_array($locusKey, ['ino', 'parblue', 'dark'], true);
-        if ($inoMasked) return [0, false];
+        if ($inoMasked) return [0, false, []];
 
-        if ($type === 'AD' || $type === 'AID') return [100, true];   // 優性が出ていない → 野生型で確定
-        if ($isSexLinked && $isFemale) return [100, true];             // メスはヘミ接合なので隠れキャリアがいない
-        return [0, false];                                             // 劣性のスプリットは表現型から判別できない
+        if ($type === 'AD' || $type === 'AID') return [100, true, []];   // 優性が出ていない → 野生型で確定
+        if ($isSexLinked && $isFemale) return [100, true, []];             // メスはヘミ接合なので隠れキャリアがいない
+        return [0, false, []];                                             // 劣性のスプリットは表現型から判別できない
     }
 
     /**
