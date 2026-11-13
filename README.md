@@ -172,7 +172,7 @@ Implements recombination rates for Z-chromosome linkage and autosomal linkage.
 |------------|-------------------|------------|
 | cin-ino | 3% | Z-linked |
 | ino-op | 30% | Z-linked |
-| cin-op | 33% | Z-linked |
+| cin-op | 31.2% | Z-linked |
 | dark-parblue | 7% | Autosomal (linked) |
 
 Accurately calculates offspring probability differences based on **Cis/Trans phase**:

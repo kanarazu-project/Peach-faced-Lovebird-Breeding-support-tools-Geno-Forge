@@ -52,7 +52,7 @@ const README_LANG = [
         'feat_calc_3' => '伴性遺伝計算: Z染色体連鎖遺伝の正確な計算（オスのスプリット、メスのヘミ接合）',
 
         'feat_linkage' => '連鎖遺伝（v7.0新機能）',
-        'feat_linkage_1' => 'Z連鎖座位: cinnamon-ino（3%）、ino-opaline（30%）、cinnamon-opaline（33%）の組換え率を実装',
+        'feat_linkage_1' => 'Z連鎖座位: cinnamon-ino（3%）、ino-opaline（30%）、cinnamon-opaline（31.2%）の組換え率を実装',
         'feat_linkage_2' => '常染色体連鎖: dark-parblue（7%）の組換え率を実装',
         'feat_linkage_3' => '相（Cis/Trans）推論: 連鎖座位の相を家系情報から推定',
         'feat_linkage_4' => '連鎖対応プランナー: Cis/Trans相を考慮した交配経路の探索',
@@ -215,7 +215,7 @@ const README_LANG = [
         'feat_calc_3' => 'Sex-Linked Calculation: Accurate Z-chromosome inheritance (male splits, female hemizygous)',
 
         'feat_linkage' => 'Linkage Genetics (v7.0 New)',
-        'feat_linkage_1' => 'Z-Linked Loci: Recombination rates for cinnamon-ino (3%), ino-opaline (30%), cinnamon-opaline (33%)',
+        'feat_linkage_1' => 'Z-Linked Loci: Recombination rates for cinnamon-ino (3%), ino-opaline (30%), cinnamon-opaline (31.2%)',
         'feat_linkage_2' => 'Autosomal Linkage: Recombination rate for dark-parblue (7%)',
         'feat_linkage_3' => 'Phase (Cis/Trans) Inference: Estimate linkage phase from pedigree information',
         'feat_linkage_4' => 'Linkage-Aware Planner: Breeding path exploration considering Cis/Trans phase',
@@ -378,7 +378,7 @@ const README_LANG = [
         'feat_calc_3' => 'Geschlechtsgebundene Berechnung: Z-Chromosom-Vererbung',
 
         'feat_linkage' => 'Kopplungsgenetik (v7.0 Neu)',
-        'feat_linkage_1' => 'Z-gekoppelte Loci: Rekombinationsraten cinnamon-ino (3%), ino-opaline (30%), cinnamon-opaline (33%)',
+        'feat_linkage_1' => 'Z-gekoppelte Loci: Rekombinationsraten cinnamon-ino (3%), ino-opaline (30%), cinnamon-opaline (31.2%)',
         'feat_linkage_2' => 'Autosomale Kopplung: Rekombinationsrate dark-parblue (7%)',
         'feat_linkage_3' => 'Phase (Cis/Trans) Inferenz: Kopplungsphase aus Stammbaum schätzen',
         'feat_linkage_4' => 'Kopplungsbewusster Planer: Zuchtpfadsuche unter Berücksichtigung der Cis/Trans-Phase',
@@ -541,7 +541,7 @@ const README_LANG = [
         'feat_calc_3' => 'Calcul lié au sexe: Hérédité chromosome Z',
 
         'feat_linkage' => 'Génétique de liaison (v7.0 Nouveau)',
-        'feat_linkage_1' => 'Loci liés au Z: Taux de recombinaison cinnamon-ino (3%), ino-opaline (30%), cinnamon-opaline (33%)',
+        'feat_linkage_1' => 'Loci liés au Z: Taux de recombinaison cinnamon-ino (3%), ino-opaline (30%), cinnamon-opaline (31.2%)',
         'feat_linkage_2' => 'Liaison autosomale: Taux de recombinaison dark-parblue (7%)',
         'feat_linkage_3' => 'Inférence de phase (Cis/Trans): Estimer la phase de liaison depuis le pédigrée',
         'feat_linkage_4' => 'Planificateur liaison: Recherche de chemins considérant la phase Cis/Trans',
@@ -704,7 +704,7 @@ const README_LANG = [
         'feat_calc_3' => 'Calcolo legato al sesso: Ereditarietà cromosoma Z',
 
         'feat_linkage' => 'Genetica di linkage (v7.0 Nuovo)',
-        'feat_linkage_1' => 'Loci Z-linked: Tassi di ricombinazione cinnamon-ino (3%), ino-opaline (30%), cinnamon-opaline (33%)',
+        'feat_linkage_1' => 'Loci Z-linked: Tassi di ricombinazione cinnamon-ino (3%), ino-opaline (30%), cinnamon-opaline (31.2%)',
         'feat_linkage_2' => 'Linkage autosomale: Tasso di ricombinazione dark-parblue (7%)',
         'feat_linkage_3' => 'Inferenza fase (Cis/Trans): Stimare la fase di linkage dal pedigree',
         'feat_linkage_4' => 'Pianificatore linkage: Ricerca percorsi considerando la fase Cis/Trans',
@@ -867,7 +867,7 @@ const README_LANG = [
         'feat_calc_3' => 'Cálculo ligado al sexo: Herencia cromosoma Z',
 
         'feat_linkage' => 'Genética de ligamiento (v7.0 Nuevo)',
-        'feat_linkage_1' => 'Loci ligados al Z: Tasas de recombinación cinnamon-ino (3%), ino-opaline (30%), cinnamon-opaline (33%)',
+        'feat_linkage_1' => 'Loci ligados al Z: Tasas de recombinación cinnamon-ino (3%), ino-opaline (30%), cinnamon-opaline (31.2%)',
         'feat_linkage_2' => 'Ligamiento autosómico: Tasa de recombinación dark-parblue (7%)',
         'feat_linkage_3' => 'Inferencia de fase (Cis/Trans): Estimar fase de ligamiento desde el pedigrí',
         'feat_linkage_4' => 'Planificador de ligamiento: Búsqueda de rutas considerando la fase Cis/Trans',
@@ -1030,7 +1030,7 @@ const README_LANG = [
         'feat_calc_3' => 'Perhitungan Terkait Jenis Kelamin: Pewarisan kromosom Z yang akurat (split jantan, betina hemizigot)',
 
         'feat_linkage' => 'Genetika Linkage (Baru v7.0)',
-        'feat_linkage_1' => 'Lokus Z-Linked: Tingkat rekombinasi cinnamon-ino (3%), ino-opaline (30%), cinnamon-opaline (33%)',
+        'feat_linkage_1' => 'Lokus Z-Linked: Tingkat rekombinasi cinnamon-ino (3%), ino-opaline (30%), cinnamon-opaline (31.2%)',
         'feat_linkage_2' => 'Linkage Autosomal: Tingkat rekombinasi dark-parblue (7%)',
         'feat_linkage_3' => 'Inferensi Fase (Cis/Trans): Memperkirakan fase linkage dari informasi silsilah',
         'feat_linkage_4' => 'Perencana Sadar Linkage: Eksplorasi jalur peternakan mempertimbangkan fase Cis/Trans',

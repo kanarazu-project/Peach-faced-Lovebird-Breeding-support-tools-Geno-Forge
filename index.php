@@ -1459,8 +1459,8 @@ $mPh = $_REQUEST['m_ph'] ?? '++';
                         </div>
                         <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0.5rem 0 0 0;">
                             <?= $lang === 'ja'
-                                ? '組み換え率: cin-ino 3%, ino-op 30%, cin-op 33%, dark-parblue 7%'
-                                : 'Recombination rates: cin-ino 3%, ino-op 30%, cin-op 33%, dark-parblue 7%' ?>
+                                ? '組み換え率: cin-ino 3%, ino-op 30%, cin-op 31.2%, dark-parblue 7%'
+                                : 'Recombination rates: cin-ino 3%, ino-op 30%, cin-op 31.2%, dark-parblue 7%' ?>
                         </p>
 
                         <!-- オス用 相(Phase)選択 - 複数伴性変異かつ相が不明な場合のみ表示 -->

@@ -229,10 +229,65 @@ final class AgapornisLoci
         // Z染色体（伴性）
         'cinnamon-ino' => 0.03,      // 3% - ほぼ完全連鎖
         'ino-opaline' => 0.30,       // 30%
-        'cinnamon-opaline' => 0.33,  // 33% (= 3% + 30%)
+        // cin–op 間は cin–ino(3%) と ino–op(30%) から干渉なしで導出する:
+        // r = r1 + r2 − 2·r1·r2 = 0.03 + 0.30 − 0.018 = 0.312
+        // 子の計算本体（Z連鎖ハプロタイプ計算）が r1・r2 を独立に掛け合わせるのと同じモデル。
+        // 単純な足し算（33%）は、cin–op 間では元の組合せに戻る二重組換えまで組換えとして数えてしまうので使わない。
+        'cinnamon-opaline' => 0.03 + 0.30 - 2 * 0.03 * 0.30,  // 31.2%
         // 常染色体
         'dark-parblue' => 0.07,      // 7%
     ];
+
+    /**
+     * 遺伝子型文字列をアレル配列に分解する（LOCI のアレル名が唯一の基準）
+     * 例: 'Pi+' → ['Pi','+'], 'inoW' → ['ino'], 'tqaq' → ['tq','aq']
+     * 解析できない文字列は null を返す。
+     */
+    public static function splitGenotype(string $locusKey, string $genotype): ?array
+    {
+        $alleles = array_map('strval', array_keys(self::LOCI[$locusKey]['alleles'] ?? []));
+        if (!$alleles) return null;
+        if ($locusKey === 'edged') {
+            // 旧表記（小文字 ed）を正規の Ed に読み替える
+            $genotype = str_replace('ed', 'Ed', $genotype);
+        }
+        if (str_ends_with($genotype, 'W')) {
+            $a = substr($genotype, 0, -1);
+            return in_array($a, $alleles, true) ? [$a] : null;
+        }
+        foreach ($alleles as $a) {
+            foreach ($alleles as $b) {
+                if ($a . $b === $genotype) return [$a, $b];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 座位の野生型アレル（LOCI でコード 0 のアレル）
+     */
+    public static function wildAllele(string $locusKey): ?string
+    {
+        $key = array_search(0, self::LOCI[$locusKey]['alleles'] ?? [], true);
+        return $key === false ? null : (string)$key;
+    }
+
+    /**
+     * アレルの組が表現型に現れるか
+     * 優性（AD/AID）は変異アレルが1つでもあれば、劣性は全アレルが変異のとき表現する。
+     * 伴性のメス（ヘミ接合）は1アレルで判定する。
+     */
+    public static function isExpressedAlleles(string $locusKey, array $alleles): bool
+    {
+        if (!$alleles) return false;
+        $wild = self::wildAllele($locusKey);
+        $type = self::LOCI[$locusKey]['type'] ?? 'AR';
+        $mutant = array_filter($alleles, fn($a) => $a !== $wild);
+        if ($type === 'AD' || $type === 'AID') {
+            return count($mutant) > 0;
+        }
+        return count($mutant) === count($alleles);
+    }
 
     /**
      * INDEPENDENT_LOCI - 独立遺伝座位（v7.0 SSOT）
@@ -1554,6 +1609,7 @@ class FamilyEstimatorV3
 
         return [
             'expressedAllele' => $this->detectAlleleFromPhenotype($locusKey, $pheno),
+            'rulesOutExpression' => $this->phenotypeRulesOutExpression($locusKey, $pheno),
             'knownGenotype' => $genotype,
             'tentativeGeno' => $tentative,
         ];
@@ -1572,6 +1628,7 @@ class FamilyEstimatorV3
             if ($parent) {
                 $evidence[$parentType] = [
                     'expressedAllele' => $this->detectAlleleFromPhenotype($locusKey, $parent['phenotype'] ?? []),
+                    'rulesOutExpression' => $this->phenotypeRulesOutExpression($locusKey, $parent['phenotype'] ?? []),
                     'knownGenotype' => $parent['genotype'][$locusKey] ?? null,
                     'tentativeGeno' => $parent['tentativeGeno'][$locusKey] ?? null,
                     'sex' => $parent['sex'] ?? ($parentType === 'sire' ? 'male' : 'female'),
@@ -1920,7 +1977,16 @@ class FamilyEstimatorV3
                     $data['probability'] = 0;
                 }
             }
+        } elseif (!empty($selfEvidence['rulesOutExpression'])) {
+            // 表現型に出ていない → その座位を表現する遺伝子型を除外
+            foreach ($candidates as $geno => &$data) {
+                $alleles = AgapornisLoci::splitGenotype($locusKey, (string)$geno);
+                if ($alleles !== null && AgapornisLoci::isExpressedAlleles($locusKey, $alleles)) {
+                    $data['probability'] = 0;
+                }
+            }
         }
+        unset($data);
 
         // 2. 親証拠による拘束
         $candidates = $this->applyParentConstraint($candidates, $parentEvidence, $locusKey, $sex, $isSexLinked);
@@ -1979,25 +2045,135 @@ class FamilyEstimatorV3
                 }
             }
             if ($sex === 'male' && $dam && $dam['expressedAllele']) {
+                // メスは自分のZを息子全員に渡す → 母のアレルを持たない息子はありえない
                 $motherAllele = $dam['expressedAllele'];
                 foreach ($candidates as $geno => &$data) {
                     if (strpos($geno, $motherAllele) === false) {
-                        $data['probability'] *= 0.5;
+                        $data['probability'] = 0;
                     }
                 }
             }
         }
+        unset($data);
 
-        // ===== 既存ロジック: 両親野生型表現 =====
+        // ===== 両親とも表現なし: メンデル比で重み付け =====
         if ($sire && !$sire['expressedAllele'] && $dam && !$dam['expressedAllele']) {
-            foreach ($candidates as $geno => &$data) {
-                if ($this->isHomozygousRecessive($locusKey, $geno)) {
-                    $data['probability'] *= 0.25;
-                }
-            }
+            $candidates = $this->applyMendelianWeights($candidates, $locusKey, $sex, $isSexLinked, $sire, $dam);
         }
 
         return $candidates;
+    }
+
+    /**
+     * 表現型から「この座位を表現していない」と言い切れるか
+     *
+     * 色名が COLOR_DEFINITIONS にあり、その色がこの座位を表現しない場合に true。
+     * ダーク・バイオレットは色名と別の入力（darkness）や系統色で見え方が変わるため対象外。
+     * INO は他の座位の見た目を覆い隠すため、INO 個体では ino・parblue 以外を判定しない。
+     */
+    private function phenotypeRulesOutExpression(string $locusKey, array $phenotype): bool
+    {
+        if (in_array($locusKey, ['dark', 'violet'], true)) return false;
+        $colorDef = AgapornisLoci::COLOR_DEFINITIONS[strtolower($phenotype['baseColor'] ?? '')] ?? null;
+        if (!$colorDef) return false;
+        $geno = $colorDef['genotype'] ?? [];
+        if (!in_array($locusKey, ['ino', 'parblue'], true) && in_array($geno['ino'] ?? '', ['inoino', 'inoW'], true)) {
+            return false;
+        }
+        if (isset($geno[$locusKey])) {
+            $alleles = AgapornisLoci::splitGenotype($locusKey, $geno[$locusKey]);
+            if ($alleles === null || AgapornisLoci::isExpressedAlleles($locusKey, $alleles)) return false;
+        }
+        return true;
+    }
+
+    /**
+     * 親が子に渡すアレルの確率分布
+     * 既知の遺伝子型があればそれを使い、なければ表現型と矛盾しない遺伝子型を一様に仮定する。
+     */
+    private function transmissionFromParent(array $parent, string $locusKey, bool $isSexLinked, bool $isDam): ?array
+    {
+        $alleleNames = array_map('strval', array_keys(AgapornisLoci::LOCI[$locusKey]['alleles'] ?? []));
+        $hemizygous = $isSexLinked && $isDam;
+        $known = $parent['knownGenotype'] ?? null;
+        $knownAlleles = $known ? AgapornisLoci::splitGenotype($locusKey, (string)$known) : null;
+
+        $genotypes = [];
+        if ($knownAlleles !== null && count($knownAlleles) === ($hemizygous ? 1 : 2)) {
+            $genotypes[] = $knownAlleles;
+        } else {
+            foreach ($alleleNames as $a) {
+                if ($hemizygous) {
+                    $genotypes[] = [$a];
+                    continue;
+                }
+                foreach ($alleleNames as $b) {
+                    $genotypes[] = [$a, $b];
+                }
+            }
+            if (!empty($parent['rulesOutExpression'])) {
+                $genotypes = array_values(array_filter(
+                    $genotypes,
+                    fn($g) => !AgapornisLoci::isExpressedAlleles($locusKey, $g)
+                ));
+            }
+        }
+        if (!$genotypes) return null;
+
+        $dist = [];
+        foreach ($genotypes as $g) {
+            foreach ($g as $a) {
+                $dist[$a] = ($dist[$a] ?? 0) + 1 / (count($genotypes) * count($g));
+            }
+        }
+        return $dist;
+    }
+
+    /**
+     * 両親から子の遺伝子型のメンデル比を求め、候補の確率に掛ける
+     * 候補の初期値は一様分布なので、事前確率で割ってメンデル比に置き換える。
+     * 入力が矛盾して全候補が 0 になる場合は、重み付け前の値を返す。
+     */
+    private function applyMendelianWeights(array $candidates, string $locusKey, string $sex, bool $isSexLinked, array $sire, array $dam): array
+    {
+        $n = count(AgapornisLoci::LOCI[$locusKey]['alleles'] ?? []);
+        if ($n === 0) return $candidates;
+        $isSexLinkedDaughter = $isSexLinked && $sex === 'female';
+
+        $fromSire = $this->transmissionFromParent($sire, $locusKey, $isSexLinked, false);
+        $fromDam = $isSexLinkedDaughter ? ['W' => 1.0] : $this->transmissionFromParent($dam, $locusKey, $isSexLinked, true);
+        if ($fromSire === null || $fromDam === null) return $candidates;
+
+        // 子の遺伝子型の分布（候補と同じ表記: ソートしたアレルを連結、伴性メスは aW）
+        $expected = [];
+        foreach ($fromSire as $a => $pa) {
+            foreach ($fromDam as $b => $pb) {
+                if ((string)$b === 'W') {
+                    $key = $a . 'W';
+                } else {
+                    $pair = [(string)$a, (string)$b];
+                    sort($pair);
+                    $key = implode('', $pair);
+                }
+                $expected[$key] = ($expected[$key] ?? 0) + $pa * $pb;
+            }
+        }
+
+        $weighted = $candidates;
+        foreach ($weighted as $geno => &$data) {
+            if ($isSexLinkedDaughter) {
+                $prior = 1 / $n;
+            } else {
+                $alleles = AgapornisLoci::splitGenotype($locusKey, (string)$geno);
+                if ($alleles === null || count($alleles) !== 2) continue;
+                $prior = ($alleles[0] === $alleles[1] ? 1 : 2) / ($n * $n);
+            }
+            $data['probability'] *= ($expected[$geno] ?? 0) / $prior;
+        }
+        unset($data);
+
+        $total = array_sum(array_column($weighted, 'probability'));
+        return $total > 0 ? $weighted : $candidates;
     }
 
 /**
@@ -4105,7 +4281,7 @@ class PathFinder
             'genotype' => $genotype,
             'steps' => $steps,
             'warnings' => $warnings,
-            'minGenerations' => count($steps),
+            'minGenerations' => $this->calculateMinGenerations($genotype),
             // v7.0: 連鎖遺伝情報
             'linkage' => $linkageAnalysis,
             // v7.2: 交配シナリオ
@@ -4141,6 +4317,37 @@ class PathFinder
         return $steps;
     }
     
+    /**
+     * 最短世代数（このプランの手順に沿った値）
+     *
+     * 各座位の表現個体を野生型と交配する系統を並行して進める（1世代目）。
+     * 系統が n 本あれば、2本ずつ合流させて全座位を1羽に集めるのに ceil(log2 n) 世代かかる。
+     * 目標の遺伝子型が野生型アレルを含まない座位（劣性ホモ、伴性メスのヘミ、DD など）が
+     * 1つでもあれば、ヘテロ同士を交配してそろえる世代が1つ増える。
+     * 変異座位がない（野生型）なら 0。
+     */
+    private function calculateMinGenerations(array $genotype): int
+    {
+        $lociCount = 0;
+        $needsFixation = false;
+        foreach ($genotype as $locus => $value) {
+            if (!isset(AgapornisLoci::LOCI[$locus])) continue;
+            if (in_array($value, ['++', 'dd', '+W', 'vv'], true)) continue;
+            $lociCount++;
+            $alleles = AgapornisLoci::splitGenotype($locus, $value);
+            if ($alleles === null || !in_array(AgapornisLoci::wildAllele($locus), $alleles, true)) {
+                $needsFixation = true;
+            }
+        }
+        if ($lociCount === 0) return 0;
+
+        $mergeGenerations = 0;
+        while ((1 << $mergeGenerations) < $lociCount) {
+            $mergeGenerations++;
+        }
+        return 1 + $mergeGenerations + ($needsFixation ? 1 : 0);
+    }
+
     private function generateStepForLocus(string $locus, string $targetAllele): ?array
     {
         $locusInfo = AgapornisLoci::LOCI[$locus] ?? null;
@@ -4775,10 +4982,11 @@ class PathFinder
         }
 
         if (in_array('cinnamon', $loci) && in_array('opaline', $loci)) {
+            $rate = $rates['cinnamon-opaline'] ?? AgapornisLoci::RECOMBINATION_RATES['cinnamon-opaline'];
             $info['cinnamon-opaline'] = [
-                'rate' => $rates['cinnamon-opaline'] ?? 0.33,
-                'parentalProb' => 1 - ($rates['cinnamon-opaline'] ?? 0.33),
-                'note' => '33%組み換え（ほぼ独立分離）',
+                'rate' => $rate,
+                'parentalProb' => 1 - $rate,
+                'note' => sprintf('%.1f%%組み換え（ほぼ独立分離）', $rate * 100),
             ];
         }
 
@@ -4816,11 +5024,11 @@ class PathFinder
         // その他の組み合わせ（汎用計算）
         // 最も強い連鎖ペアを使用
         if (in_array('cinnamon', $loci) && in_array('ino', $loci)) {
-            $rate = 0.03;
+            $rate = AgapornisLoci::RECOMBINATION_RATES['cinnamon-ino'];
         } elseif (in_array('ino', $loci) && in_array('opaline', $loci)) {
-            $rate = 0.30;
+            $rate = AgapornisLoci::RECOMBINATION_RATES['ino-opaline'];
         } elseif (in_array('cinnamon', $loci) && in_array('opaline', $loci)) {
-            $rate = 0.33;
+            $rate = AgapornisLoci::RECOMBINATION_RATES['cinnamon-opaline'];
         } else {
             $rate = 0.50; // 独立分離
         }
@@ -4935,22 +5143,17 @@ public function estimate(string $sex, string $baseColor, string $eyeColor, strin
             $genoValue = $genotype[$locusKey] ?? null;
             
             if ($genoValue === null) {
-                // 野生型
-                if ($isSexLinked && $isFemale) {
-                    $genoValue = '+W';
-                } else {
-                    $genoValue = '++';
-                }
+                // 野生型（ダーク dd・バイオレット vv も LOCI の野生型アレルから作る）
+                $wild = AgapornisLoci::wildAllele($locusKey) ?? '+';
+                $genoValue = ($isSexLinked && $isFemale) ? $wild . 'W' : $wild . $wild;
             }
-            // 表現型に現れているか（野生型以外か）で確定度を判定
-            $isExpressed = isset($genotype[$locusKey]);
-            $confidence = $isExpressed ? 100 : 0;
+            [$confidence, $isConfirmed] = $this->phenotypeConfidence($locusKey, $config, $genoValue, $isSexLinked, $isFemale, $genotype);
 
             $results[] = [
                 'locusKey' => $locusKey,
                 'locusName' => $locusName,
                 'genotype' => $genoValue,
-                'isConfirmed' => $isExpressed,
+                'isConfirmed' => $isConfirmed,
                 'confidence' => $confidence,
                 'isSexLinked' => $isSexLinked,
             ];
@@ -4966,6 +5169,37 @@ public function estimate(string $sex, string $baseColor, string $eyeColor, strin
         ];
     }
     
+    /**
+     * 表現型だけから遺伝子型をどこまで確定できるか
+     *
+     * 100: 確定
+     *  50: 見た目が同じ2通りがある（優性のヘテロとホモ、パリッドのオスの pldpld と pldino）
+     *   0: 表現型からは判別できない（劣性の隠れスプリット、INO に隠された座位）
+     *
+     * @return array{0:int,1:bool} [確信度, 確定か]
+     */
+    private function phenotypeConfidence(string $locusKey, array $config, string $genoValue, bool $isSexLinked, bool $isFemale, array $genotype): array
+    {
+        $alleles = AgapornisLoci::splitGenotype($locusKey, $genoValue);
+        if ($alleles === null) return [0, false];
+        $type = $config['type'] ?? 'AR';
+
+        if (AgapornisLoci::isExpressedAlleles($locusKey, $alleles)) {
+            if ($type === 'AD') return [50, false];
+            if ($locusKey === 'ino' && !$isFemale && $genoValue === 'pldpld') return [50, false];
+            return [100, true];
+        }
+
+        // INO は他の座位の見た目を覆い隠す（parblue は色名で、dark は入力で決まるので除外）
+        $inoMasked = in_array($genotype['ino'] ?? '', ['inoino', 'inoW'], true)
+            && !in_array($locusKey, ['ino', 'parblue', 'dark'], true);
+        if ($inoMasked) return [0, false];
+
+        if ($type === 'AD' || $type === 'AID') return [100, true];   // 優性が出ていない → 野生型で確定
+        if ($isSexLinked && $isFemale) return [100, true];             // メスはヘミ接合なので隠れキャリアがいない
+        return [0, false];                                             // 劣性のスプリットは表現型から判別できない
+    }
+
     /**
      * スプリットの可能性を計算
      */

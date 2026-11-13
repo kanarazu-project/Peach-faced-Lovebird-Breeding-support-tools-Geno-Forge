@@ -1922,6 +1922,118 @@ if ($runTests) {
     } catch (Throwable $e) {
         addTestResult($cat, 'lang_pathfinder.php loaded', false, 'Exception: ' . $e->getMessage(), $testResults, $totalTests, $passedTests, $failedTests, $testCategories);
     }
+
+    // ==========================================================
+    // SECTION 22: 回帰テスト（組換え率・家系推定・最短世代数・確信度）
+    // ==========================================================
+    $cat = '回帰: 推定ロジック';
+    $reg = function (string $name, callable $fn) use ($cat, &$testResults, &$totalTests, &$passedTests, &$failedTests, &$testCategories) {
+        try {
+            [$ok, $msg] = $fn();
+        } catch (Throwable $e) {
+            $ok = false;
+            $msg = 'Exception: ' . $e->getMessage();
+        }
+        addTestResult($cat, $name, $ok, $msg, $testResults, $totalTests, $passedTests, $failedTests, $testCategories);
+    };
+    $locusOf = function (array $loci, string $key): ?array {
+        foreach ($loci as $l) {
+            if (($l['locusKey'] ?? '') === $key) return $l;
+        }
+        return null;
+    };
+    $probOf = function (?array $locus, string $geno): float {
+        foreach ($locus['candidates'] ?? [] as $c) {
+            if ($c['genotype'] === $geno) return (float)$c['probability'];
+        }
+        return 0.0;
+    };
+
+    // Test 22-1: cin–op の組換え率が cin–ino・ino–op から導いた値と一致する
+    $reg('Recombination: cin-op derived from cin-ino and ino-op (31.2%)', function () {
+        $r = AgapornisLoci::RECOMBINATION_RATES;
+        $derived = $r['cinnamon-ino'] + $r['ino-opaline'] - 2 * $r['cinnamon-ino'] * $r['ino-opaline'];
+        $ok = abs($r['cinnamon-opaline'] - $derived) < 1e-9 && abs($r['cinnamon-opaline'] - 0.312) < 1e-9;
+        return [$ok, sprintf('cin-op=%.4f, derived=%.4f', $r['cinnamon-opaline'], $derived)];
+    });
+
+    // Test 22-2: PathFinder の連鎖情報も同じ率を使う
+    $reg('Recombination: PathFinder linkage uses 31.2% for cin-op', function () {
+        $res = (new PathFinder())->findPath('opaline_cinnamon_green');
+        $json = json_encode($res['linkage'] ?? [], JSON_UNESCAPED_UNICODE);
+        $ok = strpos($json, '31.2%') !== false && strpos($json, '33%') === false;
+        return [$ok, $ok ? 'linkage note: 31.2%' : 'linkage: ' . mb_substr($json, 0, 200)];
+    });
+
+    // Test 22-3: 表現メスの息子は母のZアレルを必ず持つ（×0.5 ではなく 0）
+    $reg('FamilyEstimator: son of lutino dam always carries ino', function () use ($locusOf, $probOf) {
+        $res = (new FamilyEstimatorV3())->estimate([
+            'sire' => ['sex' => 'male', 'phenotype' => ['baseColor' => 'green'], 'genotype' => []],
+            'dam' => ['sex' => 'female', 'phenotype' => ['baseColor' => 'lutino'], 'genotype' => []],
+            'offspring' => [['sex' => 'male', 'phenotype' => ['baseColor' => 'green'], 'genotype' => []]],
+        ], 'offspring_0');
+        $ino = $locusOf($res['loci'] ?? [], 'ino');
+        $ok = ($ino['topGenotype'] ?? '') === '+ino' && $probOf($ino, '+ino') == 100.0;
+        return [$ok, 'ino top: ' . ($ino['topGenotype'] ?? '?') . ' ' . $probOf($ino, $ino['topGenotype'] ?? '') . '%'];
+    });
+
+    // Test 22-4: 表現していない個体に、表現する遺伝子型を割り当てない
+    $reg('FamilyEstimator: green bird cannot be dominant pied or dilute', function () use ($locusOf, $probOf) {
+        $res = (new FamilyEstimatorV3())->estimate([
+            'sire' => ['sex' => 'male', 'phenotype' => ['baseColor' => 'green'], 'genotype' => []],
+            'dam' => ['sex' => 'female', 'phenotype' => ['baseColor' => 'green'], 'genotype' => []],
+            'offspring' => [['sex' => 'male', 'phenotype' => ['baseColor' => 'green'], 'genotype' => []]],
+        ], 'offspring_0');
+        $pied = $locusOf($res['loci'] ?? [], 'pied_dom');
+        $dil = $locusOf($res['loci'] ?? [], 'dilute');
+        $ok = $probOf($pied, '++') == 100.0 && $probOf($dil, 'dildil') == 0.0;
+        return [$ok, sprintf('pied_dom ++=%.1f%%, dilute dildil=%.1f%%', $probOf($pied, '++'), $probOf($dil, 'dildil'))];
+    });
+
+    // Test 22-5: 非表現の両親からの劣性はメンデル比（各親 1/3 で保因アレルを渡す）
+    $reg('FamilyEstimator: Mendelian ratio from two non-expressing parents', function () use ($locusOf, $probOf) {
+        $res = (new FamilyEstimatorV3())->estimate([
+            'sire' => ['sex' => 'male', 'phenotype' => ['baseColor' => 'green'], 'genotype' => []],
+            'dam' => ['sex' => 'female', 'phenotype' => ['baseColor' => 'green'], 'genotype' => []],
+            'offspring' => [['sex' => 'male', 'phenotype' => ['baseColor' => 'green'], 'genotype' => []]],
+        ], 'offspring_0');
+        $dil = $locusOf($res['loci'] ?? [], 'dilute');
+        // ++ : +dil : dildil = 4 : 4 : 1、本人が非表現なので dildil を除いて 50 : 50
+        $ok = $probOf($dil, '++') == 50.0 && $probOf($dil, '+dil') == 50.0;
+        return [$ok, sprintf('dilute ++=%.1f%%, +dil=%.1f%%', $probOf($dil, '++'), $probOf($dil, '+dil'))];
+    });
+
+    // Test 22-6: 最短世代数がプランの交配モデルと一致する
+    $reg('PathFinder: minGenerations follows breeding model', function () {
+        $pf = new PathFinder();
+        $expect = ['green' => 0, 'pied_dom_green' => 1, 'lutino' => 2, 'dilute_green' => 2, 'pure_white' => 3];
+        $got = [];
+        foreach ($expect as $key => $_) {
+            $got[$key] = $pf->findPath($key)['minGenerations'] ?? null;
+        }
+        $msg = implode(', ', array_map(fn($k) => "{$k}={$got[$k]}", array_keys($got)));
+        return [$got === $expect, $msg];
+    });
+
+    // Test 22-7: 確信度は表現型から判別できる度合いを反映する
+    $reg('GenotypeEstimator: confidence reflects what phenotype can determine', function () use ($locusOf) {
+        $est = new GenotypeEstimator();
+        $greenMale = $est->estimate('male', 'green', 'black', 'none')['loci'];
+        $greenFemale = $est->estimate('female', 'green', 'black', 'none')['loci'];
+        $piedMale = $est->estimate('male', 'pied_dom_green', 'black', 'none')['loci'];
+        $lutinoMale = $est->estimate('male', 'lutino', 'red', 'none')['loci'];
+        $checks = [
+            'green♂ parblue ++ (split unknown)=0' => ($locusOf($greenMale, 'parblue')['confidence'] ?? null) === 0,
+            'green♂ pied_dom ++ =100' => ($locusOf($greenMale, 'pied_dom')['confidence'] ?? null) === 100,
+            'green♂ violet vv' => ($locusOf($greenMale, 'violet')['genotype'] ?? null) === 'vv',
+            'green♀ ino +W =100' => ($locusOf($greenFemale, 'ino')['confidence'] ?? null) === 100,
+            'pied♂ Pi+/PiPi =50' => ($locusOf($piedMale, 'pied_dom')['confidence'] ?? null) === 50,
+            'lutino♂ pied_dom masked =0' => ($locusOf($lutinoMale, 'pied_dom')['confidence'] ?? null) === 0,
+            'lutino♂ ino =100' => ($locusOf($lutinoMale, 'ino')['confidence'] ?? null) === 100,
+        ];
+        $failed = array_keys(array_filter($checks, fn($v) => !$v));
+        return [!$failed, $failed ? 'NG: ' . implode(' / ', $failed) : count($checks) . ' checks OK'];
+    });
 }
 ?>
 <!DOCTYPE html>
