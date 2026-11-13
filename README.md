@@ -104,15 +104,16 @@ genetics.php (SSOT)
 
 The mathematical logic of `genetics.php` (genetic calculation core engine) has been verified for computational reliability through cross-referencing with *Principles of Avian Genetics for Aviculture* (full text) using Gemini 3 in a single context window for mathematical validation against genetic theory.
 
-### File List (16 files, 24,429 lines)
+### File List (17 files, 27,464 lines)
 
 | File | Lines | Purpose |
 |------|------:|---------|
-| genetics.php | 4,996 | Genetics calculation engine (SSOT) |
+| genetics.php | 5,256 | Genetics calculation engine (SSOT) |
 | style.css | 3,091 | All styles |
-| index.php | 2,293 | Main UI + JS constant injection |
+| debug_test.php | 2,747 | Debug test suite |
+| index.php | 2,299 | Main UI + JS constant injection |
 | birds.js | 2,298 | Bird DB + 72 demo specimens |
-| lang_pathfinder.php | 2,170 | PathFinder i18n (11 languages) |
+| lang_pathfinder.php | 2,192 | PathFinder i18n (11 languages) |
 | planner.js | 2,042 | Breeding planner + linkage evaluation |
 | readme_lang.php | 1,585 | README i18n (11 languages) |
 | family.js | 1,542 | Family tree UI + Auto Populate |
@@ -125,16 +126,21 @@ The mathematical logic of `genetics.php` (genetic calculation core engine) has b
 | infer.php | 214 | Genotype inference logic |
 | lang.php | 182 | Base i18n (11 languages) |
 
-### Key Classes (genetics.php)
+### Key Classes
 
 ```php
+// genetics.php
 GeneticsCalculator::calculateOffspring()  // Offspring probability calculation
 AgapornisLoci::resolveColor()             // Genotype → Phenotype name
 GenotypeEstimator::estimate()             // Phenotype → Genotype estimation
-FamilyEstimatorV3::infer()                // Batch inference from pedigree
-BreedingValidator::calculateWrightCoefficient()  // Inbreeding coefficient
+FamilyEstimatorV3::estimate()             // Batch inference from pedigree
 PathFinder::findPath()                    // Route finding to target color
 GametesGenerator::generateZLinkedMale()   // v7 linkage gamete generation
+```
+
+```js
+// guardian.js
+BreedingValidator.calcInbreedingCoefficient()  // Inbreeding coefficient (Wright's F)
 ```
 
 ---
@@ -254,7 +260,7 @@ This is the minimum *for this plan*. Shorter routes, such as pairing two express
 | Confidence | Meaning | Examples |
 |---|---|---|
 | 100 (confirmed) | The phenotype fixes the genotype | Expressed recessive; dominant **not** expressed → `++`; sex-linked female not expressed → `+W`; dark/violet |
-| 50 | Two genotypes look the same | Dominant Pied `Pi+` vs `PiPi`; Edged `Ed+` vs `EdEd`; Pallid male `pldpld` vs `pldino` |
+| 50 | Two genotypes look the same | Dominant Pied `Pi+` vs `PiPi`; Pallid male `pldpld` vs `pldino` |
 | 0 | Cannot be determined from phenotype | Hidden recessive split (male or autosomal); loci masked by INO |
 
 Wild-type values are built from `LOCI` (`dd`, `vv`, `++`, `+W`).
@@ -287,15 +293,14 @@ Comprehensive test suite covering all genetic calculations and integrations.
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 120 (PHP 90 + JS 30) |
+| Total Tests | 121 (PHP 91 + JS 30) |
 | Pass Rate | 100% |
 | Test File | `debug_test.php` |
-| Report | [`TEST_REPORT.md`](TEST_REPORT.md) |
 
 **Test Categories:**
 - PHP Unit tests (50): Core classes, calculations, color definitions
 - PHP Integration tests (33): UI/API compatibility, SSOT integrity, i18n coverage
-- PHP Regression tests (7): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression), minGenerations, phenotype confidence
+- PHP Regression tests (8): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression), minGenerations, phenotype confidence, Edged inheritance mode
 - JS Tests (30): BreedingValidator, HealthGuardian, BreedingPlanner
 
 Run tests via browser: `debug_test.php?run_tests=1`

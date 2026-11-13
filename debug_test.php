@@ -2015,6 +2015,18 @@ if ($runTests) {
         return [$got === $expect, $msg];
     });
 
+    // Test 22-8: エッジドは劣性（LOCI の型・計算本体・色定義が一致する）
+    $reg('Edged: recessive in LOCI and offspring calculation', function () {
+        $type = AgapornisLoci::LOCI['edged']['type'] ?? '?';
+        $res = (new GeneticsCalculator())->calculateOffspring(['f_ed' => 'Ed+', 'm_ed' => 'Ed+']);
+        $edged = 0.0;
+        foreach ($res['phenotype'] ?? [] as $r) {
+            if (($r['phenotype_en'] ?? '') === 'Edged Green') $edged += $r['probability'];
+        }
+        $ok = $type === 'AR' && abs($edged - 0.25) < 1e-9;
+        return [$ok, sprintf('type=%s, Ed+ x Ed+ -> Edged %.1f%%', $type, $edged * 100)];
+    });
+
     // Test 22-7: 確信度は表現型から判別できる度合いを反映する
     $reg('GenotypeEstimator: confidence reflects what phenotype can determine', function () use ($locusOf) {
         $est = new GenotypeEstimator();

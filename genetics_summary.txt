@@ -89,7 +89,7 @@ Z染色体連鎖:
 
 【表現型からの確信度 GenotypeEstimator】
   100  確定        表現している劣性、優性が出ていない(++)、伴性メスの非表現(+W)、dark/violet
-   50  2通りが同じ見た目  Pi+ / PiPi、Ed+ / EdEd、パリッドのオスの pldpld / pldino
+   50  2通りが同じ見た目  Pi+ / PiPi、パリッドのオスの pldpld / pldino
     0  判別不能    劣性の隠れスプリット（オス・常染色体）、INO に隠された座位
   野生型は LOCI の野生型アレルから作る（dd, vv, ++, +W）。
 

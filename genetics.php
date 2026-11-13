@@ -33,7 +33,7 @@ final class AgapornisLoci
         'pied_dom' => ['name'=>['ja'=>'ドミナントパイド','en'=>'Dominant Pied'],'type'=>'AD','sex_linked'=>false,'alleles'=>['+'=>0,'Pi'=>1]],
         'pied_rec' => ['name'=>['ja'=>'レセッシブパイド','en'=>'Recessive Pied'],'type'=>'AR','sex_linked'=>false,'alleles'=>['+'=>0,'pi'=>1]],
         'dilute' => ['name'=>['ja'=>'ダイリュート','en'=>'Dilute'],'type'=>'AR','sex_linked'=>false,'alleles'=>['+'=>0,'dil'=>1]],
-        'edged' => ['name'=>['ja'=>'エッジド','en'=>'Edged'],'type'=>'AD','sex_linked'=>false,'alleles'=>['+'=>0,'Ed'=>1]],
+        'edged' => ['name'=>['ja'=>'エッジド','en'=>'Edged'],'type'=>'AR','sex_linked'=>false,'alleles'=>['+'=>0,'Ed'=>1]],
         'orangeface' => ['name'=>['ja'=>'オレンジフェイス','en'=>'Orangeface'],'type'=>'AR','sex_linked'=>false,'alleles'=>['+'=>0,'of'=>1]],
         'pale_headed' => ['name'=>['ja'=>'ペールヘッド','en'=>'Pale Headed'],'type'=>'AR','sex_linked'=>false,'alleles'=>['+'=>0,'ph'=>1]],
         'ino' => ['name'=>['ja'=>'INO','en'=>'INO'],'type'=>'SL_MULTI','sex_linked'=>true,'alleles'=>['+'=>0,'pld'=>1,'ino'=>2]],
@@ -5173,7 +5173,7 @@ public function estimate(string $sex, string $baseColor, string $eyeColor, strin
      * 表現型だけから遺伝子型をどこまで確定できるか
      *
      * 100: 確定
-     *  50: 見た目が同じ2通りがある（優性のヘテロとホモ、パリッドのオスの pldpld と pldino）
+     *  50: 見た目が同じ2通りがある（ドミナントパイドの Pi+ と PiPi、パリッドのオスの pldpld と pldino）
      *   0: 表現型からは判別できない（劣性の隠れスプリット、INO に隠された座位）
      *
      * @return array{0:int,1:bool} [確信度, 確定か]
