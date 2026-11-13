@@ -157,14 +157,21 @@ BreedingValidator.calcInbreedingCoefficient()  // Inbreeding coefficient (Wright
 | pied_dom | AD | Dominant Pied | Harlequin |
 | pied_rec | AR | Recessive Pied | - |
 | dilute | AR | Dilute | Japanese Dilute |
-| **edged** | AR | **Edged Dilute** | **Marbled, Greywing, American Dilute, Golden Cherry** |
+| **edged** | AR | **Edged Dilute** | **Marbled** (international, symbol `mb`); historical: American Golden Cherry, Edged Pastel (Dutch *pastelgezoomd*) |
 | orangeface | AR | Orangeface | - |
 | pale_headed | AR | Pale Headed | - |
 | ino | SL | Lutino/Pallid | SL-Ino |
 | opaline | SL | Opaline | - |
 | cinnamon | SL | Cinnamon | American Cinnamon |
 
-> **Note:** "Edged" is the ALBS-standard name for the mutation internationally known as "Marbled" or "Greywing".
+> **Note on Edged (Marbled):**
+> - **Name.** ALBS classifies this mutation as **Edged Dilute** (e.g. "Edged Dilute Green"). The international term is **marbled** (e.g. "marbled green"). The ALBS name is used in the `albs` field of `COLOR_DEFINITIONS`, and the code shortens it to "Edged".
+> - **Inheritance.** It is **autosomal recessive**: only `EdEd` is visual, and `Ed+` is a split. The allele symbol `Ed` is kept for input compatibility; the international symbol is `mb`.
+> - **"Edged dilute" is a historical mistranslation** of the Dutch *pastelgezoomd* (edged pastel). Edged and dilute are different mutations, so "Edged Dilute" does **not** mean edged + dilute.
+> - **"Greywing"** in *A. roseicollis* has not been shown to be a separate mutation or allele; test pairings point to natural variation within marbled. Do not confuse it with the budgerigar greywing, an allele of the dilute locus.
+> - **Not the dominant edged** (ALBS "Spangled", international "dominant edge(d)") found in Fischer's and Masked lovebirds. That is a separate mutation with dominant inheritance.
+>
+> Sources: Van den Abeele, D. (2015). *The marbled – greywing mystery (aka quartz)*. Ornitho-Genetics VZW ([EN](https://www.ogvzw.org/on-request-english-translation-greywing/), [NL](https://www.ogvzw.org/faq-bestaat-er-een-greywing-roseicollis/)); African Love Bird Society, *Comparison of ALBS classifications with International nomenclature* (PDF, 2019).
 
 ---
 

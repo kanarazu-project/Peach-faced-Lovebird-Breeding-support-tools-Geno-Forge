@@ -13,6 +13,15 @@ ZZ/ZW方式（哺乳類と逆）
 常染色体劣性 (AR)
   → pied_rec, dilute, edged, orangeface, pale_headed, fallow_pale, fallow_bronze
 
+  edged について:
+    - ALBS 名は Edged Dilute、国際名は marbled（記号 mb）。
+    - 劣性で、EdEd だけが表現する（Ed+ はスプリット）。
+    - "Edged Dilute" はオランダ語 pastelgezoomd（edged pastel）の誤訳から来た名前。
+      エッジドとダイリュートの組合せではない。
+    - フィッシャー・ボタンの dominant edged（ALBS 名 Spangled）は、優性の別変異。
+    出典: Van den Abeele (2015) Ornitho-Genetics VZW 記事 /
+          ALBS "Comparison of ALBS classifications with International nomenclature" (2019)
+
 常染色体優性 (AD)
   → pied_dom
 
