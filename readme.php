@@ -243,6 +243,7 @@ php -S localhost:8000</code></pre>
 <li><?= rt('logic_family_2') ?></li>
 <li><?= rt('logic_family_3') ?></li>
 <li><?= rt('logic_family_4') ?></li>
+<li><?= rt('logic_family_5') ?></li>
 </ul>
 
 <h3><?= rt('logic_mingen_h') ?></h3>

@@ -104,25 +104,25 @@ genetics.php (SSOT)
 
 The mathematical logic of `genetics.php` (genetic calculation core engine) has been verified for computational reliability through cross-referencing with *Principles of Avian Genetics for Aviculture* (full text) using Gemini 3 in a single context window for mathematical validation against genetic theory.
 
-### File List (17 files, 27,841 lines)
+### File List (17 files, 27,968 lines)
 
 | File | Lines | Purpose |
 |------|------:|---------|
-| genetics.php | 5,264 | Genetics calculation engine (SSOT) |
+| genetics.php | 5,325 | Genetics calculation engine (SSOT) |
 | style.css | 3,091 | All styles |
-| debug_test.php | 2,783 | Debug test suite |
+| debug_test.php | 2,832 | Debug test suite |
 | index.php | 2,311 | Main UI + JS constant injection |
 | birds.js | 2,298 | Bird DB + 72 demo specimens |
 | lang_pathfinder.php | 2,192 | PathFinder i18n (11 languages) |
 | planner.js | 2,042 | Breeding planner + linkage evaluation |
-| readme_lang.php | 1,817 | README i18n (11 languages) |
+| readme_lang.php | 1,828 | README i18n (11 languages) |
 | family.js | 1,542 | Family tree UI + Auto Populate |
 | lang_guardian.php | 1,165 | Guardian i18n (11 languages) |
 | app.js | 908 | Main application logic |
-| pedigree.js | 650 | Pedigree chart rendering |
+| pedigree.js | 655 | Pedigree chart rendering |
 | guardian.js | 517 | Health assessment engine |
 | breeding.js | 492 | Breeding calculation UI |
-| readme.php | 373 | README page |
+| readme.php | 374 | README page |
 | infer.php | 214 | Genotype inference logic |
 | lang.php | 182 | Base i18n (11 languages) |
 
@@ -236,9 +236,16 @@ For each locus, every genotype starts with a uniform prior and is then constrain
 
 **Limits of "not expressed" (deliberately conservative):**
 - Applied only when `phenotype.baseColor` exists in `COLOR_DEFINITIONS`. A missing or unknown colour makes no assumption.
-- Not applied to **dark** (entered separately as `darkness`) or **violet** (visibility depends on the base series).
+- Not applied to **dark**, which is handled separately (see below), or to **violet**, whose visibility depends on the base series.
 - In **INO birds**, loci other than `ino` and `parblue` are masked and are not judged.
-- Known gap: the parents' `darkness` field is not used yet, so dark-factor inference from parents is uninformed (`Dd` 50%, `dd`/`DD` 25%).
+
+**Dark factor.** Dark is incomplete dominant, so `dd`, `Dd` and `DD` look different (Green / Medium Green / Dark Green). The genotype is therefore read straight from the phenotype by `AgapornisLoci::resolveDarkGenotype()`, which is shared by the offspring calculation, `GenotypeEstimator` and `FamilyEstimatorV3`:
+
+1. If the darkness field is `sf` or `df` (case-insensitive), it wins: `Dd` / `DD`.
+2. Otherwise (`none`, `unknown`, missing), the colour name's definition is used (e.g. `olive` → `DD`).
+3. The 12 INO colours (lutino, creamino, pure white, …) have no dark definition, so the result is **unknown**. In SL ino the dark factor does not change the yellow body colour; it only deepens the blue shade of the rump (Van den Abeele, [Ornitho-Genetics VZW FAQ](https://www.ogvzw.org/?p=18692), 2023). An INO bird's dark factor counts only when the user sets `sf`/`df` explicitly. The offspring calculation still needs a value and treats it as `dd`.
+
+In family inference, the dark genotypes known from the bird, its parents and its offspring are used as known genotypes. Parents are always combined by Mendelian weighting. When the bird being inferred is a parent, each child's genotype must be producible with the mate's alleles (the mate's known genotype, or every allele if unknown). Examples: olive × olive → olive child `DD` 100%; olive × green → dark green child `Dd` 100%; lutino (dark unknown) sire, green dam, dark green child → sire `Dd` 66.7% / `DD` 33.3%. The dark–parblue linkage (7%) is not used in family inference; each locus is inferred independently.
 
 ### Minimum generations (`PathFinder::findPath()['minGenerations']`)
 
@@ -266,13 +273,13 @@ This is the minimum *for this plan*. Shorter routes, such as pairing two express
 
 | Confidence | Meaning | Examples |
 |---|---|---|
-| 100 (confirmed) | The phenotype fixes the genotype | Expressed recessive; dominant **not** expressed → `++`; sex-linked female not expressed → `+W`; dark/violet |
+| 100 (confirmed) | The phenotype fixes the genotype | Expressed recessive; dominant **not** expressed → `++`; sex-linked female not expressed → `+W`; dark (from darkness field or colour name); violet |
 | 50 | Two genotypes look the same | Dominant Pied `Pi+` vs `PiPi`; Pallid male `pldpld` vs `pldino` |
-| 0 | Cannot be determined from phenotype | Hidden recessive split (male or autosomal); loci masked by INO |
+| 0 | Cannot be determined from phenotype | Hidden recessive split (male or autosomal); loci masked by INO, including dark when darkness is not `sf`/`df` |
 
 Wild-type values are built from `LOCI` (`dd`, `vv`, `++`, `+W`). For confidence 50 the result also carries `alternatives` (e.g. `["Pi+","PiPi"]`). The estimator screen shows them as "One of two: Pi+ / PiPi" instead of "?".
 
-The pedigree certificate (`pedigree.js` → `phenotypeConfidence()`) applies the same rule on the JS side, using `COLOR_MASTER` and `LOCI_MASTER`. It agrees with the PHP result for all 8,060 colour × sex × locus combinations, excluding dark, which comes from separate inputs. Red eyes alone no longer confirm INO, because fallow birds are red-eyed too.
+The pedigree certificate (`pedigree.js` → `phenotypeConfidence()`) applies the same rule on the JS side, using `COLOR_MASTER` and `LOCI_MASTER`. It agrees with the PHP result for all 8,680 colour × sex × locus combinations, dark included. Red eyes alone no longer confirm INO, because fallow birds are red-eyed too.
 
 ### In-app README (`readme.php`)
 
@@ -306,14 +313,14 @@ Comprehensive test suite covering all genetic calculations and integrations.
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 123 (PHP 93 + JS 30) |
+| Total Tests | 125 (PHP 95 + JS 30) |
 | Pass Rate | 100% |
 | Test File | `debug_test.php` |
 
 **Test Categories:**
 - PHP Unit tests (50): Core classes, calculations, color definitions
 - PHP Integration tests (33): UI/API compatibility, SSOT integrity, i18n coverage
-- PHP Regression tests (10): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression), minGenerations, phenotype confidence and alternatives, Edged inheritance mode, in-app README i18n and `lang` whitelist
+- PHP Regression tests (12): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist
 - JS Tests (30): BreedingValidator, HealthGuardian, BreedingPlanner
 
 Run tests via browser: `debug_test.php?run_tests=1`

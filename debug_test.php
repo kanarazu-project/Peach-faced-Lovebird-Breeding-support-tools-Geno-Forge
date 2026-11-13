@@ -2063,6 +2063,55 @@ if ($runTests) {
         return [$ok, count($keys) . ' keys x ' . count(README_LANG) . ' langs, unresolved=' . count($unresolved) . ", evil lang -> {$evil}"];
     });
 
+    // Test 22-11: 家系推定でダーク因子を表現型（色名・濃さ欄）から使う
+    $reg('FamilyEstimator: dark factor from colour name and darkness field', function () {
+        $dark = function (array $s, array $d, array $c, string $target = 'offspring_0') {
+            $r = (new FamilyEstimatorV3())->estimate([
+                'sire' => ['sex' => 'male', 'phenotype' => $s, 'genotype' => []],
+                'dam' => ['sex' => 'female', 'phenotype' => $d, 'genotype' => []],
+                'offspring' => [['sex' => 'male', 'phenotype' => $c, 'genotype' => []]],
+            ], $target);
+            $out = [];
+            foreach ($r['loci'] ?? [] as $l) {
+                if ($l['locusKey'] !== 'dark') continue;
+                foreach ($l['candidates'] as $x) {
+                    if ($x['probability'] > 0) $out[$x['genotype']] = (float)$x['probability'];
+                }
+            }
+            ksort($out);
+            return $out;
+        };
+        $cases = [
+            'olive x olive -> olive' => [$dark(['baseColor' => 'olive'], ['baseColor' => 'olive'], ['baseColor' => 'olive']), ['DD' => 100.0]],
+            'olive x green -> darkgreen' => [$dark(['baseColor' => 'olive'], ['baseColor' => 'green'], ['baseColor' => 'darkgreen']), ['Dd' => 100.0]],
+            'green+df x green -> green+sf' => [$dark(['baseColor' => 'green', 'darkness' => 'df'], ['baseColor' => 'green', 'darkness' => 'none'], ['baseColor' => 'green', 'darkness' => 'sf']), ['Dd' => 100.0]],
+            'green x green -> green' => [$dark(['baseColor' => 'green', 'darkness' => 'none'], ['baseColor' => 'green', 'darkness' => 'none'], ['baseColor' => 'green', 'darkness' => 'none']), ['dd' => 100.0]],
+            'sire lutino?, dam green, child darkgreen' => [$dark(['baseColor' => 'lutino'], ['baseColor' => 'green'], ['baseColor' => 'darkgreen'], 'sire'), ['DD' => 33.3, 'Dd' => 66.7]],
+        ];
+        $failed = [];
+        foreach ($cases as $name => [$got, $want]) {
+            if ($got !== $want) $failed[] = "$name: " . json_encode($got);
+        }
+        return [!$failed, $failed ? implode(' / ', $failed) : count($cases) . ' pedigrees OK'];
+    });
+
+    // Test 22-12: 遺伝子型推定は画面の小文字 sf/df を受け付け、INO で濃さ未入力なら判断しない
+    $reg('GenotypeEstimator: darkness sf/df (any case), INO dark unknown', function () use ($locusOf) {
+        $est = new GenotypeEstimator();
+        $d = fn($color, $dk) => $locusOf($est->estimate('male', $color, 'black', $dk)['loci'], 'dark');
+        $checks = [
+            'green+sf -> Dd' => ($d('green', 'sf')['genotype'] ?? null) === 'Dd',
+            'green+SF -> Dd' => ($d('green', 'SF')['genotype'] ?? null) === 'Dd',
+            'green+df -> DD' => ($d('green', 'df')['genotype'] ?? null) === 'DD',
+            'olive+none -> DD (colour name)' => ($d('olive', 'none')['genotype'] ?? null) === 'DD',
+            'lutino+none -> conf 0' => ($d('lutino', 'none')['confidence'] ?? null) === 0,
+            'lutino+sf -> Dd conf 100' => ($d('lutino', 'sf')['confidence'] ?? null) === 100,
+            'resolveDarkGenotype lutino -> null' => AgapornisLoci::resolveDarkGenotype(['baseColor' => 'lutino']) === null,
+        ];
+        $failed = array_keys(array_filter($checks, fn($v) => !$v));
+        return [!$failed, $failed ? 'NG: ' . implode(' / ', $failed) : count($checks) . ' checks OK'];
+    });
+
     // Test 22-7: 確信度は表現型から判別できる度合いを反映する
     $reg('GenotypeEstimator: confidence reflects what phenotype can determine', function () use ($locusOf) {
         $est = new GenotypeEstimator();

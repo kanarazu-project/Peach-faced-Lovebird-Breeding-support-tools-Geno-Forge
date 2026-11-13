@@ -264,6 +264,26 @@ final class AgapornisLoci
     }
 
     /**
+     * 表現型からダーク因子の遺伝子型を決める（全機能で共通の規則）
+     *
+     * 1. 濃さ欄（darkness）が sf / df なら、それを優先する（大文字小文字は問わない）。
+     * 2. なし・不明・未入力なら、色名の定義（COLOR_DEFINITIONS の dark）に従う。
+     * 3. 色名に dark の定義がない（INO 系の12色）なら判断できないので $default を返す。
+     *    INO ではダーク因子は黄色の体色に影響せず、腰の青みが濃くなるだけのため
+     *    （Van den Abeele, Ornitho-Genetics VZW FAQ, 2023）。
+     *
+     * ダーク因子は不完全優性で、dd / Dd / DD は見た目で区別できる。
+     */
+    public static function resolveDarkGenotype(array $phenotype, ?string $default = null): ?string
+    {
+        $darkness = strtolower((string)($phenotype['darkness'] ?? ''));
+        if ($darkness === 'df') return 'DD';
+        if ($darkness === 'sf') return 'Dd';
+        $colorDef = self::COLOR_DEFINITIONS[strtolower((string)($phenotype['baseColor'] ?? ''))] ?? null;
+        return $colorDef['genotype']['dark'] ?? $default;
+    }
+
+    /**
      * 座位の野生型アレル（LOCI でコード 0 のアレル）
      */
     public static function wildAllele(string $locusKey): ?string
@@ -1610,7 +1630,7 @@ class FamilyEstimatorV3
         return [
             'expressedAllele' => $this->detectAlleleFromPhenotype($locusKey, $pheno),
             'rulesOutExpression' => $this->phenotypeRulesOutExpression($locusKey, $pheno),
-            'knownGenotype' => $genotype,
+            'knownGenotype' => $genotype ?? $this->genotypeFromPhenotype($locusKey, $pheno),
             'tentativeGeno' => $tentative,
         ];
     }
@@ -1629,7 +1649,8 @@ class FamilyEstimatorV3
                 $evidence[$parentType] = [
                     'expressedAllele' => $this->detectAlleleFromPhenotype($locusKey, $parent['phenotype'] ?? []),
                     'rulesOutExpression' => $this->phenotypeRulesOutExpression($locusKey, $parent['phenotype'] ?? []),
-                    'knownGenotype' => $parent['genotype'][$locusKey] ?? null,
+                    'knownGenotype' => $parent['genotype'][$locusKey]
+                        ?? $this->genotypeFromPhenotype($locusKey, $parent['phenotype'] ?? []),
                     'tentativeGeno' => $parent['tentativeGeno'][$locusKey] ?? null,
                     'sex' => $parent['sex'] ?? ($parentType === 'sire' ? 'male' : 'female'),
                 ];
@@ -1748,6 +1769,8 @@ class FamilyEstimatorV3
             $evidence['offspring'][] = [
                 'sex' => $child['sex'] ?? 'unknown',
                 'allele' => $allele,
+                'genotype' => $child['genotype'][$locusKey]
+                    ?? $this->genotypeFromPhenotype($locusKey, $child['phenotype'] ?? []),
             ];
             if ($allele) {
                 $evidence['recessiveCount']++;
@@ -2056,12 +2079,23 @@ class FamilyEstimatorV3
         }
         unset($data);
 
-        // ===== 両親とも表現なし: メンデル比で重み付け =====
-        if ($sire && !$sire['expressedAllele'] && $dam && !$dam['expressedAllele']) {
+        // ===== 両親とも表現なし、またはダーク（表現型から遺伝子型が決まる）: メンデル比で重み付け =====
+        $bothUnexpressed = $sire && !$sire['expressedAllele'] && $dam && !$dam['expressedAllele'];
+        if ($sire && $dam && ($bothUnexpressed || $locusKey === 'dark')) {
             $candidates = $this->applyMendelianWeights($candidates, $locusKey, $sex, $isSexLinked, $sire, $dam);
         }
 
         return $candidates;
+    }
+
+    /**
+     * 表現型だけで遺伝子型が1つに決まる座位なら、その遺伝子型を返す
+     * 現在はダーク因子のみ（不完全優性で dd / Dd / DD が見分けられる）。
+     */
+    private function genotypeFromPhenotype(string $locusKey, array $phenotype): ?string
+    {
+        if ($locusKey !== 'dark') return null;
+        return AgapornisLoci::resolveDarkGenotype($phenotype);
     }
 
     /**
@@ -2351,6 +2385,36 @@ private function genotypeEquivalent(string $g1, string $g2): bool
     {
         if ($offspringEvidence['count'] === 0) return $candidates;
 
+        // 表現型から遺伝子型が決まる座位（ダーク）:
+        // 配偶者のアレル（分かればその遺伝子型、なければ全アレル）と組んで、各子の遺伝子型を作れない候補を除く
+        if ($locusKey === 'dark') {
+            $allAlleles = array_map('strval', array_keys(AgapornisLoci::LOCI[$locusKey]['alleles'] ?? []));
+            $mate = $this->familyMap[$this->targetPosition === 'sire' ? 'dam' : 'sire'] ?? null;
+            $mateGeno = $mate ? ($mate['genotype'][$locusKey] ?? $this->genotypeFromPhenotype($locusKey, $mate['phenotype'] ?? [])) : null;
+            $mateAlleles = ($mateGeno ? AgapornisLoci::splitGenotype($locusKey, (string)$mateGeno) : null) ?? $allAlleles;
+            $before = $candidates;
+            foreach ($offspringEvidence['offspring'] as $child) {
+                $childAlleles = $child['genotype'] ? AgapornisLoci::splitGenotype($locusKey, (string)$child['genotype']) : null;
+                if (!$childAlleles || count($childAlleles) !== 2) continue;
+                sort($childAlleles);
+                foreach ($candidates as $geno => &$data) {
+                    $own = AgapornisLoci::splitGenotype($locusKey, (string)$geno) ?? [];
+                    $possible = false;
+                    foreach ($own as $x) {
+                        foreach ($mateAlleles as $y) {
+                            $pair = [$x, $y];
+                            sort($pair);
+                            if ($pair === $childAlleles) $possible = true;
+                        }
+                    }
+                    if (!$possible) $data['probability'] = 0;
+                }
+                unset($data);
+            }
+            // 入力が矛盾して全候補が消える場合は、拘束前の値を残す
+            return array_sum(array_column($candidates, 'probability')) > 0 ? $candidates : $before;
+        }
+
         // 子に劣性形質が出た → 親は必ずその対立遺伝子を持つ
         if ($offspringEvidence['recessiveCount'] > 0 && $offspringEvidence['recessiveAllele']) {
             $allele = $offspringEvidence['recessiveAllele'];
@@ -2383,7 +2447,7 @@ private function genotypeEquivalent(string $g1, string $g2): bool
      */
     private function applySiblingConstraint(array $candidates, array $siblingEvidence, array $parentEvidence, string $locusKey): array
     {
-        if ($siblingEvidence['count'] === 0) return $candidates;
+        if ($siblingEvidence['count'] === 0 || $locusKey === 'dark') return $candidates;
 
         // 兄弟に劣性形質 → 両親はスプリット確定 → 自分も2/3でスプリット
         if ($siblingEvidence['recessiveCount'] > 0 && $siblingEvidence['recessiveAllele']) {
@@ -3427,14 +3491,8 @@ private function phenotypeToGenotype(array $input, string $prefix, string $sex):
             // Parblue
             $geno['parblue'] = $defGeno['parblue'] ?? '++';
             
-            // Dark（darknessパラメータで上書き可能）
-            if ($darkness === 'df') {
-                $geno['dark'] = 'DD';
-            } elseif ($darkness === 'sf') {
-                $geno['dark'] = 'Dd';
-            } else {
-                $geno['dark'] = $defGeno['dark'] ?? 'dd';
-            }
+            // Dark（濃さ欄 sf/df が優先、なければ色名の定義。INO 系で不明なら dd とみなす）
+            $geno['dark'] = AgapornisLoci::resolveDarkGenotype(['baseColor' => $baseColor, 'darkness' => $darkness], 'dd');
             
             // INO
             if (isset($defGeno['ino'])) {
@@ -5110,13 +5168,13 @@ public function estimate(string $sex, string $baseColor, string $eyeColor, strin
         $genotype = $colorDef['genotype'] ?? [];
         $isFemale = ($sex === 'female');
         
-        // ダークファクター適用
-        if ($darkFactor === 'SF') {
-            $genotype['dark'] = 'Dd';
-        } elseif ($darkFactor === 'DF') {
-            $genotype['dark'] = 'DD';
-        } elseif (!isset($genotype['dark'])) {
-            $genotype['dark'] = 'dd';
+        // ダークファクター適用（画面からは小文字 sf/df、旧呼び出しは大文字 SF/DF）
+        // 判断できない（INO 系で濃さ未入力）ときは dark を未設定のままにし、確信度 0 にする
+        $dark = AgapornisLoci::resolveDarkGenotype(['baseColor' => $baseColor, 'darkness' => $darkFactor]);
+        if ($dark !== null) {
+            $genotype['dark'] = $dark;
+        } else {
+            unset($genotype['dark']);
         }
         
         // 伴性遺伝子のヘミ接合変換（メスの場合）
@@ -5181,6 +5239,9 @@ public function estimate(string $sex, string $baseColor, string $eyeColor, strin
      */
     private function phenotypeConfidence(string $locusKey, array $config, string $genoValue, bool $isSexLinked, bool $isFemale, array $genotype): array
     {
+        // ダーク因子が判断できない（INO 系で濃さ未入力）
+        if ($locusKey === 'dark' && !isset($genotype['dark'])) return [0, false, []];
+
         $alleles = AgapornisLoci::splitGenotype($locusKey, $genoValue);
         if ($alleles === null) return [0, false, []];
         $type = $config['type'] ?? 'AR';

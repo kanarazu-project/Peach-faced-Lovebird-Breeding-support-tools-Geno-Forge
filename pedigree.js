@@ -226,10 +226,15 @@ const PedigreeGenerator = {
      */
     phenotypeConfidence(observed, locus, sex) {
         const baseColor = observed.baseColor || '';
-        const darkness = observed.darkness || '';
+        const darkness = String(observed.darkness || '').toLowerCase();
 
-        // ダークファクターは darkness 入力から確定
-        if (locus === 'dark' && darkness && darkness !== 'unknown') return 100;
+        // ダーク因子（genetics.php AgapornisLoci::resolveDarkGenotype と同じ規則）:
+        // 濃さ欄 sf/df が優先、なし・不明・未入力は色名の定義。INO 系は色名に定義がなく判断できない。
+        if (locus === 'dark') {
+            if (darkness === 'sf' || darkness === 'df') return 100;
+            const def = (typeof COLOR_MASTER !== 'undefined') ? COLOR_MASTER[baseColor] : null;
+            return (def && def.genotype && def.genotype.dark) ? 100 : 0;
+        }
         // 赤目だけでは INO と確定しない（ファローも赤目）。色名の定義から判定する。
 
         const colorDef = (typeof COLOR_MASTER !== 'undefined') ? COLOR_MASTER[baseColor] : null;
