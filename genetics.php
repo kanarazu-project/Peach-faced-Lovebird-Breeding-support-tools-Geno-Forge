@@ -759,7 +759,7 @@ final class AgapornisLoci
                 case 'edged':
                     $ja .= 'エッジド';
                     $en .= 'Edged ';
-                    $genotype['edged'] = 'eded';
+                    $genotype['edged'] = 'EdEd';
                     break;
                 case 'ino':
                     $genotype['ino'] = 'inoino';
@@ -976,7 +976,7 @@ final class AgapornisLoci
             $parts_ja[] = 'ダイリュート';
             $parts_en[] = 'Dilute';
         }
-        if (!$hasIno && isset($genotype['edged']) && $genotype['edged'] === 'eded') {
+        if (!$hasIno && isset($genotype['edged']) && in_array($genotype['edged'], ['eded', 'EdEd'])) {
             $parts_ja[] = 'エッジド';
             $parts_en[] = 'Edged';
         }
@@ -1078,6 +1078,16 @@ final class AgapornisLoci
             '+tq' => 'tq+',
         ];
 
+        // edged座位の等価マッピング（Ed/ed表記の違いを吸収）
+        $edgedEquivalents = [
+            'eded' => 'EdEd',
+            'EdEd' => 'eded',
+            '+ed' => 'Ed+',
+            'Ed+' => '+ed',
+            'ed+' => '+Ed',
+            '+Ed' => 'ed+',
+        ];
+
         foreach ($defGeno as $locus => $value) {
             if (!isset($targetGeno[$locus])) {
                 return false;
@@ -1095,6 +1105,10 @@ final class AgapornisLoci
                     if ($parblueEquiv === $value) {
                         continue;
                     }
+                }
+                // edged座位のEd/ed表記違いを吸収
+                if ($locus === 'edged' && ($edgedEquivalents[$value] ?? null) === $targetVal) {
+                    continue;
                 }
                 return false;
             }
@@ -1756,7 +1770,7 @@ class FamilyEstimatorV3
             'pied_dom' => ['Pi+', 'PiPi'],
             'pied_rec' => ['pipi'],
             'dilute' => ['dildil'],
-            'edged' => ['eded'],
+            'edged' => ['eded', 'EdEd'],
             'orangeface' => ['ofof'],
             'pale_headed' => ['phph'],
         ];
@@ -1781,7 +1795,7 @@ class FamilyEstimatorV3
             'Pi+' => 'Pi', 'PiPi' => 'Pi',
             'pipi' => 'pi',
             'dildil' => 'dil',
-            'eded' => 'ed',
+            'eded' => 'ed', 'EdEd' => 'Ed',
             'ofof' => 'of',
             'phph' => 'ph',
         ];
@@ -2018,6 +2032,7 @@ private function extractAllelesFromGenotype(?string $genotype, string $locusKey)
         'pipi' => ['pi', 'pi'],
         'dildil' => ['dil', 'dil'],
         'eded' => ['ed', 'ed'],
+        'EdEd' => ['Ed', 'Ed'],
         'ofof' => ['of', 'of'],
         'phph' => ['ph', 'ph'],
     ];
@@ -2043,6 +2058,8 @@ private function extractAllelesFromGenotype(?string $genotype, string $locusKey)
         '+pi' => ['+', 'pi'],
         '+dil' => ['+', 'dil'],
         '+ed' => ['+', 'ed'],
+        'Ed+' => ['Ed', '+'],
+        '+Ed' => ['+', 'Ed'],
         '+of' => ['+', 'of'],
         '+ph' => ['+', 'ph'],
     ];
@@ -3007,7 +3024,7 @@ class GeneticsCalculator
     {
         $knownAlleles = [
             'ino', 'pld', 'cin', 'tq', 'aq', 'op',
-            'flp', 'flb', 'dil', 'pi', 'Pi', 'ed', 'of', 'ph',
+            'flp', 'flb', 'dil', 'pi', 'Pi', 'ed', 'Ed', 'of', 'ph',
             'D', 'd', 'V', 'v', 'W', '+'
         ];
         $result = [];
@@ -3141,7 +3158,7 @@ class GeneticsCalculator
         
         // Edged
         $ed = $g['ed'] ?? '++';
-        if (strpos($ed, 'ed/ed') !== false || $ed === 'eded') {
+        if (strpos($ed, 'ed/ed') !== false || $ed === 'eded' || strpos($ed, 'Ed/Ed') !== false || $ed === 'EdEd') {
             $genotype['edged'] = 'eded';
         }
         
@@ -3426,7 +3443,7 @@ private function phenotypeToGenotype(array $input, string $prefix, string $sex):
             'pidom' => ['+' => '+', 'Pi' => 'Pi'],
             'pirec' => ['+' => '+', 'pi' => 'pi'],
             'dil' => ['+' => '+', 'dil' => 'dil'],
-            'ed' => ['+' => '+', 'ed' => 'ed'],
+            'ed' => ['+' => '+', 'ed' => 'ed', 'Ed' => 'Ed'],
             'of' => ['+' => '+', 'of' => 'of'],
             'ph' => ['+' => '+', 'ph' => 'ph'],
         ];
@@ -3967,7 +3984,7 @@ private function phenotypeToGenotype(array $input, string $prefix, string $sex):
             'pidom' => ['++', 'Pi+', '+Pi', 'PiPi'],
             'pirec' => ['++', '+pi', 'pi+', 'pipi'],
             'dil' => ['++', '+dil', 'dil+', 'dildil'],
-            'ed' => ['++', '+ed', 'ed+', 'eded'],
+            'ed' => ['++', '+ed', 'ed+', 'eded', 'Ed+', '+Ed', 'EdEd'],
             'of' => ['++', '+of', 'of+', 'ofof'],
             'ph' => ['++', '+ph', 'ph+', 'phph'],
         ];
@@ -3975,8 +3992,8 @@ private function phenotypeToGenotype(array $input, string $prefix, string $sex):
         // 伴性遺伝座位（オス/メスで異なる）
         $sexLinkedLoci = [
             'ino' => [
-                'male' => ['++', '+ino', 'ino+', 'inoino'],
-                'female' => ['+W', 'inoW'],
+                'male' => ['++', '+ino', 'ino+', 'inoino', '+pld', 'pld+', 'pldpld', 'pldino', 'inopld'],
+                'female' => ['+W', 'inoW', 'pldW'],
             ],
             'op' => [
                 'male' => ['++', '+op', 'op+', 'opop'],
@@ -4192,7 +4209,7 @@ class PathFinder
             'pied_dom' => ['Pi+' => 'pied_dom_green', 'PiPi' => 'pied_dom_green'],
             'pied_rec' => ['pipi' => 'pied_rec_green'],
             'dilute' => ['dildil' => 'dilute_green'],
-            'edged' => ['eded' => 'edged_green'],
+            'edged' => ['eded' => 'edged_green', 'EdEd' => 'edged_green'],
             'orangeface' => ['ofof' => 'orangefaced_green'],
             'pale_headed' => ['phph' => 'paleheaded_green'],
             'fallow_pale' => ['flpflp' => 'fallow_pale_green'],

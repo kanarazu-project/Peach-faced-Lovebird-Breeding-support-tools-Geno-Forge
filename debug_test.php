@@ -1711,7 +1711,7 @@ if ($runTests) {
         $warnings = $result['warnings'] ?? [];
         $hasMaleWWarning = false;
         foreach ($warnings as $w) {
-            if (strpos($w, 'オスに+Wは指定できません') !== false) {
+            if (strpos($w, 'Cannot specify +W for male') !== false) {
                 $hasMaleWWarning = true;
                 break;
             }
