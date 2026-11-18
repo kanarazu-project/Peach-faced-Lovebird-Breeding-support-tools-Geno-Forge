@@ -1,0 +1,24 @@
+# 全体の検査（scripts/agent-check）: Skill の照合・規則表・PHP テスト・血統書の PHP/JS 一致検査。
+# pre-commit は変更ファイルだけを見るので、全量はここで必ず受ける。
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  agent-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tool versions
+        run: |
+          php -v
+          node -v
+          python3 --version
+      - name: scripts/agent-check
+        run: bash scripts/agent-check

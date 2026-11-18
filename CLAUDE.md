@@ -49,7 +49,7 @@ See docs/llm-software-design-constitution.md.
 - 遺伝の事実と判定規則（座位・アレル・遺伝子型の表記・色の遺伝子型・組換え率・表現と隠蔽・確信度）は genetics.php にだけ置け。
 - JS では、index.php が注入した定数（LOCI_MASTER・COLOR_MASTER・RECOMBINATION_RATES・PEDIGREE_DATA など）から遺伝の事実を引け。JS が持つのは描画・入力・表引きと、birds.js のデモ個体データだけにせよ。
 - JS に遺伝の結果が要るときは、PHP で計算した表を index.php から注入せよ（例: GenotypeEstimator::pedigreeData()）。
-- 検証入口は `bash scripts/agent-check`（route-check・rule-lint・PHP テスト・血統書の PHP/JS 一致検査）。完了の報告には、その出力と終了コードを添えよ。
+- 検証入口は `bash scripts/agent-check`（route-check・rule-lint・PHP テスト・血統書の PHP/JS 一致検査）。完了の報告には、その出力と終了コードを添えよ。CI（.github/workflows/verify.yml）が同じ入口を全量で走らせる。クローンしたら `bash scripts/install-hooks` で pre-commit を有効にせよ。
 
 ## 文書（docs）
 - 遺伝のデータ・判定・注入に触れる作業では、先に docs/ssot.md を読み、そこに書かれた正本の地図と規則に従え。

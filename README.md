@@ -326,7 +326,9 @@ Comprehensive test suite covering all genetic calculations and integrations.
 - PHP Regression tests (13): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist, pedigree data built from SSOT
 - JS Tests (30): BreedingValidator, HealthGuardian, BreedingPlanner
 
-Run tests via browser: `debug_test.php?run_tests=1`
+Run tests via browser: `debug_test.php?run_tests=1`, or on the command line: `bash scripts/agent-check` (Skill routing check, rule table, PHP tests and the pedigree PHP/JS match check).
+
+CI (`.github/workflows/verify.yml`) runs `scripts/agent-check` on every push to main and on pull requests. To enable the pre-commit hook in a clone, run `bash scripts/install-hooks` once. It runs the routing check and the rule table on staged files only; the full check stays in CI.
 
 ---
 

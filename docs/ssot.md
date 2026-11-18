@@ -43,6 +43,8 @@ genetics.php（正本）
 | 一致検査 | `scripts/pedigree-check` | pedigree.js の表引き結果と PHP の phenotypeConfidence が、全色 × 性別 × 座位 × 濃さ欄で一致すること |
 | 回帰テスト | `scripts/php-test`（debug_test.php） | 計算・推定の挙動 |
 | 入口 | `scripts/agent-check` | 上の検査をまとめて実行 |
+| CI | `.github/workflows/verify.yml` | push（main）と pull request で `scripts/agent-check` を全量実行 |
+| pre-commit | `.githooks/pre-commit`（有効化: `bash scripts/install-hooks`、クローンごとに1回） | route-check と、ステージした変更ファイルへの rule-lint |
 
 ## 4. 残っている二重化の候補（未仕分け）
 

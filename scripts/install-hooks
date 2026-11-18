@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# このクローンで .githooks/ の Git hook（pre-commit）を有効にする。クローンごとに1回実行する。
+root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
+git config core.hooksPath .githooks && echo "OK   core.hooksPath = $(git config --get core.hooksPath)"
