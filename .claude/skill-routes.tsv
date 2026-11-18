@@ -1,3 +1,7 @@
 # 依頼文の正規表現<TAB>手順のパス。skill-router.sh が読む。大文字小文字は区別しない。
 # 一致した手順の本文は、モデルの判断を経ずに文脈へ入る。条件は、利用者が実際に使う言葉で書け。
 # 一致は書いた言い回しに限られる。拾えなかった言い回しを見つけたら、ここへ足せ。
+設計監査|現状把握|影響調査|影響範囲|design.?audit	.claude/skills/design-audit/SKILL.md
+リファクタ|refactor	.claude/skills/safe-refactor/SKILL.md
+レビュー|差分|プルリク|pull.?request|review	.claude/skills/code-review/SKILL.md
+遺伝|座位|アレル|遺伝子型|組換え|組み換え|表現型|確信度|ssot|genotype|allele|locus|loci	.claude/skills/genetics-change/SKILL.md

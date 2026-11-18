@@ -5,4 +5,6 @@ root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
 rc=0
 bash scripts/route-check || rc=1
 bash scripts/rule-lint "$@" || rc=1
+bash scripts/php-test || rc=1
+bash scripts/pedigree-check || rc=1
 exit "$rc"

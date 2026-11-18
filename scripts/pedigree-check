@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# 血統書（pedigree.js）の確信度が、正本（genetics.php GenotypeEstimator::estimate()）と全件一致するかを検査する。
+# pedigree.js は PEDIGREE_DATA を引くだけなので、表の作り方か引き方が崩れたらここで落ちる。
+# 対象: 全色 × オス/メス × 全座位 × 濃さ欄（none/sf/df/unknown/未入力）。1件でも食い違えば NG・終了コード 1。
+root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
+command -v php >/dev/null 2>&1 || { echo "NG   pedigree-check: php が無い"; exit 1; }
+command -v node >/dev/null 2>&1 || { echo "NG   pedigree-check: node が無い"; exit 1; }
+tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
+php -r '
+require "genetics.php";
+$e = new GenotypeEstimator(); $expect = [];
+foreach (AgapornisLoci::COLOR_DEFINITIONS as $color => $def) {
+    foreach (["male", "female"] as $sex) {
+        foreach (["none", "sf", "df", "unknown", ""] as $dk) {
+            foreach ($e->estimate($sex, (string)$color, $def["eye"] ?? "black", $dk === "" ? "none" : $dk)["loci"] ?? [] as $l) {
+                $expect[] = [(string)$color, $sex, $dk, $l["locusKey"], $l["confidence"]];
+            }
+        }
+    }
+}
+echo json_encode(["PEDIGREE_DATA" => GenotypeEstimator::pedigreeData(), "LOCI_MASTER" => AgapornisLoci::LOCI,
+                  "COLOR_MASTER" => AgapornisLoci::COLOR_DEFINITIONS, "expect" => $expect]);
+' > "$tmp" || { echo "NG   pedigree-check: PHP 側の出力に失敗"; exit 1; }
+exec node - "$tmp" "$root/pedigree.js" <<'JS'
+const fs = require('fs'), vm = require('vm');
+const d = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const ctx = { PEDIGREE_DATA: d.PEDIGREE_DATA, LOCI_MASTER: d.LOCI_MASTER, COLOR_MASTER: d.COLOR_MASTER,
+              window: { T: {} }, document: {}, console: { warn() {}, log() {} } };
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(process.argv[3], 'utf8') + '\nthis.PG = PedigreeGenerator;', ctx);
+let bad = 0;
+for (const [color, sex, darkness, locus, want] of d.expect) {
+  const got = ctx.PG.phenotypeConfidence({ baseColor: color, darkness }, locus, sex);
+  if (got !== want) {
+    if (bad < 20) console.log(`NG   pedigree-check: ${color}/${sex}/darkness=${darkness || '(未入力)'}/${locus}: php=${want} js=${got}`);
+    bad++;
+  }
+}
+console.log(bad ? `NG   pedigree-check: ${bad} 件不一致 / ${d.expect.length} 件` : `OK   pedigree-check: ${d.expect.length} 件すべて一致`);
+process.exit(bad ? 1 : 0);
+JS

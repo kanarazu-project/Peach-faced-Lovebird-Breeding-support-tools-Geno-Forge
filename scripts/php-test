@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# debug_test.php の PHP テストを CLI で走らせる。1件でも失敗すれば NG・終了コード 1。
+# debug_test.php はブラウザ用のページなので、テスト結果の変数だけを読み、HTML は捨てる。
+root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
+command -v php >/dev/null 2>&1 || { echo "NG   php-test: php が無い"; exit 1; }
+exec php -r '
+$_GET["run_tests"] = 1;
+ob_start(); include "debug_test.php"; ob_end_clean();
+foreach ($testCategories as $cat => $d) {
+    foreach ($d["tests"] as $t) {
+        if (!$t["passed"]) echo "NG   php-test: [$cat] {$t["name"]}: {$t["message"]}\n";
+    }
+}
+echo ($failedTests ? "NG" : "OK") . "   php-test: {$passedTests}/{$totalTests} passed\n";
+exit($failedTests ? 1 : 0);
+'
