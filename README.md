@@ -1,11 +1,11 @@
 # 🦜 Gene-Forge v7.3
 
-**Agapornis Genetics Calculator — ALBS Naming Convention**
+**Agapornis Genetics Calculator — ALBS show-class names, international names for AOC colours**
 
 Genetic calculation engine for Rosy-faced Lovebirds (Agapornis roseicollis).
-Supports 14 loci with 310+ phenotypes.
+Supports 14 loci with 314 defined phenotypes.
 
-> **Naming:** ALBS (African Lovebird Society) naming conventions
+> **Naming:** ALBS (African Love Bird Society) show-class names where ALBS has a class (176 colours); the other 138 colours are AOC and use international names
 > **Science:** Based on Dirk Van den Abeele / Ornitho-Genetics VZW research
 
 ---
@@ -21,7 +21,7 @@ Supports 14 loci with 310+ phenotypes.
 | External Dependencies | **Zero** (by design) |
 | Supported Languages | 11 (ja/en/de/fr/it/es/pt/nl/id/th/tl) |
 | Genetic Loci | 14 |
-| Phenotype Definitions | 310+ |
+| Phenotype Definitions | 314 (176 with an ALBS show class, 138 AOC) |
 | License | CC BY-NC-SA 4.0 |
 
 ---
@@ -122,11 +122,11 @@ The mathematical logic of `genetics.php` (genetic calculation core engine) has b
 
 | File | Lines | Purpose |
 |------|------:|---------|
-| genetics.php | 5,712 | Genetics calculation engine (SSOT) |
+| genetics.php | 5,978 | Genetics calculation engine (SSOT) |
 | style.css | 3,091 | All styles |
-| debug_test.php | 2,970 | Debug test suite |
+| debug_test.php | 2,992 | Debug test suite |
 | index.php | 2,323 | Main UI + JS constant injection |
-| birds.js | 2,379 | Bird DB + 72 demo specimens |
+| birds.js | 2,380 | Bird DB + 72 demo specimens |
 | lang_pathfinder.php | 2,192 | PathFinder i18n (11 languages) |
 | planner.js | 1,799 | Breeding planner + linkage evaluation |
 | readme_lang.php | 1,879 | README i18n (11 languages) |
@@ -314,9 +314,22 @@ A genotype is matched to a colour by how it looks, not by its exact notation. Ea
 - in the ino locus pld is dominant over ino, so `pldino` reads as `pldpld` (`ALLELE_DOMINANCE`);
 - a dominant (AD) locus reads as its heterozygote, so `PiPi` reads as `Pi+`.
 
-The phenotype forms are joined into a signature. When INO is expressed, the dark factor is left out (`COLOR_LOCI_HIDDEN_BY_INO`), because INO colours are not named by dark. The colour is the definition with the same signature. `BirdDB.colorKeyOf()` builds the same signature, and `scripts/js-check` compares the two on 3,310 genotypes.
+The phenotype forms are joined into a signature. When INO is expressed, the dark factor is left out (`COLOR_LOCI_HIDDEN_BY_INO`), because INO colours are not named by dark. The colour is the definition with the same signature. `BirdDB.colorKeyOf()` builds the same signature, and `scripts/js-check` compares the two on 3,314 genotypes.
 
 Before this, the match compared notation strings, so offspring carrying `+aq`, `+Ed` or `ino+` got the colour key `unknown` in the offspring calculator, and `PiPi` / `pldino` had no colour. On the old code, 1,030 of 20,310 sampled genotypes changed from no colour to a colour; no defined colour changed. Phenotype confidence uses the same forms: the genotypes that look the same give the 50% alternatives (`Pi+`/`PiPi`, male `pldpld`/`pldino`); its output is unchanged.
+
+### ALBS show classes, AOC and international names
+
+`AgapornisLoci::ALBS_PEACHFACED_CLASSES` holds the ALBS 2016 Show Classifications for peachfaced (Sections 5–13, class names verbatim). The ALBS comparison table with international nomenclature uses the same class names.
+- **ALBS name.** A colour has an ALBS name (`albs`) only if ALBS has a class for it. This applies to 176 of the 314 colours. `AgapornisLoci::albsClass()` returns the class. A depth (Medium/Dark) belongs to the "Medium and Dark …" class or the "… - All" class.
+- **AOC colours.** The other 138 colours are AOC (Any Other Color) and have `albs` = null:
+  - every colour with recessive pied, dilute, pale fallow, bronze fallow or pale headed (ALBS has no peachfaced class for these);
+  - most turquoise/seagreen combinations (e.g. pied Australian cinnamon whitefaced par-blue);
+  - cinnamon ino.
+- **International names.** `AgapornisLoci::internationalName()` builds a name in the style of the comparison table's right column, e.g. `DD green`, `ino turquoise`, `pale fallow green`, `cinnamon ino AquaTurquoise`. The comparison table has no names for recessive pied, dilute, pale fallow, bronze fallow and pale headed; their names here are this project's choice.
+- **INO names fixed to ALBS:** Whitefaced Par-Blue Creamino (pure white), Seagreen Par-Blue Creamino, Opaline Creamino, Opaline Whitefaced Par-Blue Creamino, Opaline Seagreen Par-Blue Creamino.
+- **Cinnamon ino** (cinnamon + ino, often called lacewing) is defined for the four parblue series (`cinnamon_ino_green`, `_aqua`, `_turquoise`, `_seagreen`). When INO is expressed together with cinnamon, the base name is "Cinnamon Ino …", e.g. Opaline Cinnamon Ino Green.
+- **Not modelled:** ALBS Blue (True) (`*blue*`). The parblue locus here has only `+`, `tq` and `aq`.
 
 ### Names of colour combinations not in `COLOR_DEFINITIONS`
 
@@ -332,7 +345,7 @@ Before this, the match compared notation strings, so offspring carrying `+aq`, `
 
 Wild-type values are built from `LOCI` (`dd`, `vv`, `++`, `+W`). For confidence 50 the result also carries `alternatives` (e.g. `["Pi+","PiPi"]`). The estimator screen shows them as "One of two: Pi+ / PiPi" instead of "?".
 
-The pedigree certificate does not re-implement this rule. `GenotypeEstimator::pedigreeData()` precomputes the confidence for every colour × sex × locus, plus each darkness value for dark. `index.php` injects the result as `PEDIGREE_DATA`, and `pedigree.js` only looks it up. `scripts/pedigree-check` compares the lookup with `GenotypeEstimator::estimate()` across all colours, both sexes, every locus and all darkness values (43,400 cases). Red eyes alone do not confirm INO, because fallow birds are red-eyed too.
+The pedigree certificate does not re-implement this rule. `GenotypeEstimator::pedigreeData()` precomputes the confidence for every colour × sex × locus, plus each darkness value for dark. `index.php` injects the result as `PEDIGREE_DATA`, and `pedigree.js` only looks it up. `scripts/pedigree-check` compares the lookup with `GenotypeEstimator::estimate()` across all colours, both sexes, every locus and all darkness values (43,960 cases). Red eyes alone do not confirm INO, because fallow birds are red-eyed too.
 
 ### In-app README (`readme.php`)
 
@@ -366,14 +379,14 @@ Comprehensive test suite covering all genetic calculations and integrations.
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 131 (PHP 101 + JS 30) |
+| Total Tests | 132 (PHP 102 + JS 30) |
 | Pass Rate | 100% |
 | Test File | `debug_test.php` |
 
 **Test Categories:**
 - PHP Unit tests (50): Core classes, calculations, color definitions
 - PHP Integration tests (33): UI/API compatibility, SSOT integrity, i18n coverage
-- PHP Regression tests (18): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist, pedigree data built from SSOT, genotype data (canonical forms, colour signatures, planner targets, INO types), planner cross table, linked cross table (cis/trans), colour key by phenotype, planner targets by phenotype
+- PHP Regression tests (19): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist, pedigree data built from SSOT, genotype data (canonical forms, colour signatures, planner targets, INO types), planner cross table, linked cross table (cis/trans), colour key by phenotype, planner targets by phenotype, ALBS classes / AOC / international names
 - JS Tests (30): BreedingValidator, HealthGuardian, BreedingPlanner
 
 Run tests via browser: `debug_test.php?run_tests=1` (PHP and JS tests), or on the command line: `bash scripts/agent-check`. It runs the Skill routing check, the rule table, the PHP tests, the pedigree PHP/JS match check, the SSOT literal check, the JS/PHP match check and the browser test. The browser test needs Playwright with Chromium; without it, it prints `SKIP` locally. CI installs them and sets `BROWSER_TEST_REQUIRED=1`, so a missing browser fails there.
@@ -409,7 +422,8 @@ See `CLAUDE.md` for details. Includes roadmap for Budgerigar version.
 - Ornitho-Genetics VZW (OGVZW): [www.ogvzw.org](https://www.ogvzw.org/)
 
 **Naming Convention:**
-- ALBS (African Lovebird Society) — Show club standard for mutation nomenclature
+- ALBS (African Love Bird Society). *2016 Show Classifications* (Peachfaced: Sections 5–13). [africanlovebirdsociety.org/new-page](https://africanlovebirdsociety.org/new-page)
+- ALBS. *Comparison of ALBS classifications with International nomenclature* (PDF created 2019-08-05; on 2026-11-18 the copy on the site was byte-identical). [Page](https://africanlovebirdsociety.org/comparison-of-albs-classifications-with-international-nomenclature)
 
 > Note: ALBS provides naming conventions for exhibitions; Ornitho-Genetics VZW (OGVZW) is the scientific authority for avian genetics research.
 

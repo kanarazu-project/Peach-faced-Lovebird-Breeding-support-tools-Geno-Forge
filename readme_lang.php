@@ -23,8 +23,8 @@ function rt(string $key): string {
 const README_LANG = [
     'ja' => [
         'title' => 'Gene-Forge v7.3',
-        'subtitle' => 'Agapornis Genetics Calculator — ALBS Compliant Edition',
-        'description' => 'ラブバード（コザクラインコ / Agapornis roseicollis）の遺伝計算エンジン。<br>14座位・310色以上に対応し、ALBS（African Lovebird Society）Peachfaced部門の命名規則に準拠。<br><strong>v7.3:</strong> 連鎖遺伝・pedigreeベース自動配置・デモ家系図セレクタ対応。',
+        'subtitle' => 'Agapornis Genetics Calculator — ALBS Classes / International Names',
+        'description' => 'ラブバード（コザクラインコ / Agapornis roseicollis）の遺伝計算エンジン。<br>14座位・310色以上に対応し、ALBS（African Love Bird Society）の出陳区分がある色は ALBS 名、区分の無い色は AOC として国際名で表す。<br><strong>v7.3:</strong> 連鎖遺伝・pedigreeベース自動配置・デモ家系図セレクタ対応。',
         
         'features' => '機能一覧',
         
@@ -213,8 +213,8 @@ const README_LANG = [
 
     'en' => [
         'title' => 'Gene-Forge v7.3',
-        'subtitle' => 'Agapornis Genetics Calculator — ALBS Compliant Edition',
-        'description' => 'Genetics calculation engine for Lovebirds (Rosy-faced Lovebird / Agapornis roseicollis).<br>Supports 14 loci and 310+ colors, compliant with ALBS (African Lovebird Society) Peachfaced section nomenclature.<br><strong>v7.3:</strong> Linkage genetics, pedigree-based auto-populate, demo family selector.',
+        'subtitle' => 'Agapornis Genetics Calculator — ALBS Classes / International Names',
+        'description' => 'Genetics calculation engine for Lovebirds (Rosy-faced Lovebird / Agapornis roseicollis).<br>Supports 14 loci and 310+ colors, ALBS (African Love Bird Society) show-class names where ALBS has a class; other colours are AOC and use international names.<br><strong>v7.3:</strong> Linkage genetics, pedigree-based auto-populate, demo family selector.',
         
         'features' => 'Features',
         
@@ -403,8 +403,8 @@ const README_LANG = [
 
     'de' => [
         'title' => 'Gene-Forge v7.3',
-        'subtitle' => 'Agapornis Genetik-Rechner — ALBS-konform',
-        'description' => 'Genetik-Berechnungsmaschine für Unzertrennliche (Rosenköpfchen / Agapornis roseicollis).<br>Unterstützt 14 Loci und 310+ Farben, konform mit ALBS (African Lovebird Society) Peachfaced-Nomenklatur.<br><strong>v7.0:</strong> Kopplungsgenetik mit Rekombinationsraten.',
+        'subtitle' => 'Agapornis Genetik-Rechner — ALBS-Klassen / internationale Namen',
+        'description' => 'Genetik-Berechnungsmaschine für Unzertrennliche (Rosenköpfchen / Agapornis roseicollis).<br>Unterstützt 14 Loci und 310+ Farben, ALBS-Klassennamen, wo ALBS eine Klasse hat; andere Farben sind AOC mit internationalen Namen.<br><strong>v7.0:</strong> Kopplungsgenetik mit Rekombinationsraten.',
         
         'features' => 'Funktionen',
         
@@ -593,8 +593,8 @@ const README_LANG = [
 
     'fr' => [
         'title' => 'Gene-Forge v7.3',
-        'subtitle' => 'Calculateur Génétique Agapornis — Conforme ALBS',
-        'description' => 'Moteur de calcul génétique pour Inséparables (Inséparable rosegorge / Agapornis roseicollis).<br>Supporte 14 loci et 310+ couleurs, conforme à la nomenclature ALBS Peachfaced.<br><strong>v7.0:</strong> Génétique de liaison avec taux de recombinaison.',
+        'subtitle' => 'Calculateur Génétique Agapornis — Classes ALBS / noms internationaux',
+        'description' => 'Moteur de calcul génétique pour Inséparables (Inséparable rosegorge / Agapornis roseicollis).<br>Supporte 14 loci et 310+ couleurs, noms des classes ALBS quand elles existent ; les autres couleurs sont AOC, avec les noms internationaux.<br><strong>v7.0:</strong> Génétique de liaison avec taux de recombinaison.',
         
         'features' => 'Fonctionnalités',
         
@@ -783,8 +783,8 @@ const README_LANG = [
 
     'it' => [
         'title' => 'Gene-Forge v7.3',
-        'subtitle' => 'Calcolatore Genetico Agapornis — Conforme ALBS',
-        'description' => 'Motore di calcolo genetico per Inseparabili (Inseparabile dal collo rosa / Agapornis roseicollis).<br>Supporta 14 loci e 310+ colori, conforme alla nomenclatura ALBS Peachfaced.<br><strong>v7.0:</strong> Genetica di linkage con tassi di ricombinazione.',
+        'subtitle' => 'Calcolatore Genetico Agapornis — Classi ALBS / nomi internazionali',
+        'description' => 'Motore di calcolo genetico per Inseparabili (Inseparabile dal collo rosa / Agapornis roseicollis).<br>Supporta 14 loci e 310+ colori, nomi delle classi ALBS dove esistono; gli altri colori sono AOC, con i nomi internazionali.<br><strong>v7.0:</strong> Genetica di linkage con tassi di ricombinazione.',
         
         'features' => 'Funzionalità',
         
@@ -973,8 +973,8 @@ const README_LANG = [
 
     'es' => [
         'title' => 'Gene-Forge v7.3',
-        'subtitle' => 'Calculadora Genética Agapornis — Conforme ALBS',
-        'description' => 'Motor de cálculo genético para Agapornis (Inseparable de Namibia / Agapornis roseicollis).<br>Soporta 14 loci y 310+ colores, conforme a la nomenclatura ALBS Peachfaced.<br><strong>v7.0:</strong> Genética de ligamiento con tasas de recombinación.',
+        'subtitle' => 'Calculadora Genética Agapornis — Clases ALBS / nombres internacionales',
+        'description' => 'Motor de cálculo genético para Agapornis (Inseparable de Namibia / Agapornis roseicollis).<br>Soporta 14 loci y 310+ colores, nombres de las clases ALBS donde existen; los demás colores son AOC, con nombres internacionales.<br><strong>v7.0:</strong> Genética de ligamiento con tasas de recombinación.',
         
         'features' => 'Funcionalidades',
         
@@ -1163,8 +1163,8 @@ const README_LANG = [
 
     'id' => [
         'title' => 'Gene-Forge v7.3',
-        'subtitle' => 'Kalkulator Genetika Agapornis — Edisi Sesuai ALBS',
-        'description' => 'Mesin perhitungan genetika untuk Lovebird (Lovebird Muka Merah / Agapornis roseicollis).<br>Mendukung 14 lokus dan 310+ warna, sesuai dengan nomenklatur ALBS (African Lovebird Society) bagian Peachfaced.<br><strong>v7.3:</strong> Genetika linkage, auto-populate berbasis pedigree, pemilih keluarga demo.',
+        'subtitle' => 'Kalkulator Genetika Agapornis — Kelas ALBS / Nama Internasional',
+        'description' => 'Mesin perhitungan genetika untuk Lovebird (Lovebird Muka Merah / Agapornis roseicollis).<br>Mendukung 14 lokus dan 310+ warna, nama kelas ALBS bila kelasnya ada; warna lain AOC dengan nama internasional.<br><strong>v7.3:</strong> Genetika linkage, auto-populate berbasis pedigree, pemilih keluarga demo.',
 
         'features' => 'Fitur',
 
@@ -1353,8 +1353,8 @@ const README_LANG = [
 
     'th' => [
         'title' => 'Gene-Forge v7.3',
-        'subtitle' => 'เครื่องคำนวณพันธุกรรม Agapornis — รุ่น ALBS',
-        'description' => 'เครื่องมือคำนวณพันธุกรรมสำหรับนกเลิฟเบิร์ดหน้ากุหลาบ (Agapornis roseicollis)<br>รองรับ 14 โลคัสและ 310+ สี ตามมาตรฐาน ALBS (African Lovebird Society) ส่วน Peachfaced<br><strong>v7.3:</strong> พันธุกรรมเชื่อมโยง, auto-populate จากพงศาวลี, ตัวเลือกครอบครัวสาธิต',
+        'subtitle' => 'เครื่องคำนวณพันธุกรรม Agapornis — คลาส ALBS / ชื่อสากล',
+        'description' => 'เครื่องมือคำนวณพันธุกรรมสำหรับนกเลิฟเบิร์ดหน้ากุหลาบ (Agapornis roseicollis)<br>รองรับ 14 โลคัสและ 310+ สี ใช้ชื่อคลาสของ ALBS เมื่อมีคลาสนั้น สีอื่นเป็น AOC และใช้ชื่อสากล<br><strong>v7.3:</strong> พันธุกรรมเชื่อมโยง, auto-populate จากพงศาวลี, ตัวเลือกครอบครัวสาธิต',
 
         'features' => 'คุณสมบัติ',
 
@@ -1476,8 +1476,8 @@ const README_LANG = [
 
     'pt' => [
         'title' => 'Gene-Forge v7.3',
-        'subtitle' => 'Calculadora de Genética Agapornis — Edição ALBS',
-        'description' => 'Motor de cálculo genético para Agapornis roseicollis (Lovebird-de-face-rosada).<br>Suporta 14 loci e 310+ cores, conforme nomenclatura ALBS (African Lovebird Society) seção Peachfaced.<br><strong>v7.3:</strong> Genética de ligação, auto-preenchimento baseado em pedigree, seletor de família demo.',
+        'subtitle' => 'Calculadora de Genética Agapornis — Classes ALBS / Nomes Internacionais',
+        'description' => 'Motor de cálculo genético para Agapornis roseicollis (Lovebird-de-face-rosada).<br>Suporta 14 loci e 310+ cores, nomes das classes ALBS onde existem; as demais cores são AOC, com nomes internacionais.<br><strong>v7.3:</strong> Genética de ligação, auto-preenchimento baseado em pedigree, seletor de família demo.',
 
         'features' => 'Funcionalidades',
 
@@ -1612,7 +1612,7 @@ const README_LANG = [
         // Hoofdbeschrijving
         'main_description' => 'Genetica Calculator voor Agapornis roseicollis',
         'main_feature_1' => 'Ondersteunt 14 genetische loci met 310+ fenotypekleuren',
-        'main_feature_2' => 'ALBS (African Lovebird Society) naamgeving conform',
+        'main_feature_2' => 'ALBS-klassennamen waar ALBS een klasse heeft; andere kleuren AOC met internationale namen',
         'main_feature_3' => 'Meertalige ondersteuning (JA/EN/DE/FR/IT/ES/PT/NL/ID/TH/TL)',
 
         // Kenmerken
@@ -1752,7 +1752,7 @@ const README_LANG = [
         // Main description
         'main_description' => 'Genetics Calculator para sa Agapornis roseicollis',
         'main_feature_1' => 'Sumusuporta sa 14 genetic loci na may 310+ phenotype na kulay',
-        'main_feature_2' => 'Sumusunod sa ALBS (African Lovebird Society) naming',
+        'main_feature_2' => 'Pangalan ng ALBS class kung mayroon; ang ibang kulay ay AOC na may internasyonal na pangalan',
         'main_feature_3' => 'Suporta sa maraming wika (JA/EN/DE/FR/IT/ES/PT/NL/ID/TH/TL)',
 
         // Features

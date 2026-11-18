@@ -15,7 +15,7 @@ error_reporting(E_ALL);
  * Agapornis Gene-Forge v7.0
  * 連鎖遺伝（Linkage Genetics）対応版
  * FamilyEstimator V3 搭載
- * ALBS Peachfaced部門準拠版
+ * 色名: ALBS の出陳区分がある色は ALBS 名、無い色は AOC（国際名）
  * 
  * v6.7.3 → v6.7.4 変更点:
  * - 全ハードコードをt()関数呼び出しに統一
@@ -648,7 +648,7 @@ const INDEPENDENT_LOCI = <?= json_encode(AgapornisLoci::INDEPENDENT_LOCI) ?>;
                         <span class="version-tag"><a href="https://github.com/kanarazu-project/gene-forge" target="_blank" style="color:#4fc3f7;font-size:.75rem;text-decoration:none;">Github</a><br><a href="https://kanarazu-project.com/gene-forge/Rosy-faced-Lovebird/readme.php?lang=<?= $lang ?>" target="_blank" style="color:#666;font-size:.65rem;text-decoration:none;">README</a></span>
             <h1 class="logo">🦜 GENE-FORGE</h1>
 <p class="app-subtitle"><?= t('subtitle') ?></p>
-<span class="version-badge"><?= t('coming_soon') ?> | ALBS<?= t('compliant') ?></span>
+<span class="version-badge"><?= t('coming_soon') ?> | ALBS / AOC</span>
         </header>
         <!-- アプリ全体のモード切替（アカウント相当） -->
         <div id="globalModeSwitch" class="global-mode-switch">

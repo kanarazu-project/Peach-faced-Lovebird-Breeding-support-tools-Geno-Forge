@@ -2240,6 +2240,28 @@ if ($runTests) {
         return [!$failed, $failed ? 'NG: ' . implode(' / ', $failed) : count($checks) . ' checks OK'];
     });
 
+    // Test 22-19: ALBS の出陳区分（2016 Show Classifications）と AOC、国際名、シナモンイノ
+    $reg('ALBS classes: INO names, AOC colours have no ALBS name, international names, cinnamon ino', function () {
+        $defs = AgapornisLoci::COLOR_DEFINITIONS;
+        $named = array_filter(array_keys($defs), fn($k) => $defs[$k]['albs'] !== null);
+        $classed = array_filter(array_keys($defs), fn($k) => AgapornisLoci::albsClass($k) !== null);
+        $checks = [
+            'every ALBS name maps to an ALBS class' => array_values($named) === array_values($classed),
+            'pure_white: Whitefaced Par-Blue Creamino' => AgapornisLoci::albsClass('pure_white') === 'Whitefaced Par-Blue Creamino',
+            'creamino_seagreen: Seagreen Par-Blue Creamino' => AgapornisLoci::albsClass('creamino_seagreen') === 'Seagreen Par-Blue Creamino',
+            'olive: Medium and Dark Green' => AgapornisLoci::albsClass('olive') === 'Medium and Dark Green',
+            'pale fallow green is AOC' => $defs['fallow_pale_green']['albs'] === null && AgapornisLoci::albsClass('fallow_pale_green') === null,
+            'international: olive = DD green' => AgapornisLoci::internationalName($defs['olive']['genotype']) === 'DD green',
+            'international: pure white = ino turquoise' => AgapornisLoci::internationalName($defs['pure_white']['genotype']) === 'ino turquoise',
+            'cinnamon ino defined and AOC' => isset($defs['cinnamon_ino_green']) && $defs['cinnamon_ino_green']['albs'] === null,
+            'cinW + inoW resolves to cinnamon_ino_green' => AgapornisLoci::findColorKey(['parblue' => '++', 'cinnamon' => 'cinW', 'ino' => 'inoW']) === 'cinnamon_ino_green',
+            'opaline cinnamon ino named' => AgapornisLoci::generateColorName(['parblue' => '++', 'opaline' => 'opop', 'cinnamon' => 'cincin', 'ino' => 'inoino'])['en'] === 'Opaline Cinnamon Ino Green',
+            'international: cinnamon ino AquaTurquoise' => AgapornisLoci::internationalName(['parblue' => 'tqaq', 'cinnamon' => 'cinW', 'ino' => 'inoW', 'dark' => 'Dd']) === 'cinnamon ino AquaTurquoise',
+        ];
+        $failed = array_keys(array_filter($checks, fn($v) => !$v));
+        return [!$failed, $failed ? 'NG: ' . implode(' / ', $failed) : count($checks) . ' checks OK (' . count($classed) . ' ALBS classes, ' . (count($defs) - count($classed)) . ' AOC)'];
+    });
+
     // Test 22-7: 確信度は表現型から判別できる度合いを反映する
     $reg('GenotypeEstimator: confidence reflects what phenotype can determine', function () use ($locusOf) {
         $est = new GenotypeEstimator();

@@ -147,6 +147,17 @@ Z染色体連鎖:
     例: 「cin·op / +」（cis）、「op / cin」（trans）、「不明」
   保存すると記録のハプロタイプと相の印（phase_known / phase_known_autosomal_1）に入る。
 
+【色名と ALBS の区分】
+  ALBS の出陳区分（2016）に区分がある色だけ、色の定義の albs に ALBS 名を持つ（176色）。
+  区分の無い色（138色）は AOC（Any Other Color）で albs は null。名前は国際名（internationalName）で表す。
+    例: pale fallow green / recessive pied D aqua / cinnamon ino green
+  AOC になる主な理由: 劣性パイド・ダイリュート・ペールファロー・ブロンズファロー・ペールヘッドは ALBS に区分が無い。
+    ターコイズ・シーグリーンとの組み合わせの多くも区分が無い（例: Pied Australian Cinnamon Whitefaced Par-Blue）。
+  INO の ALBS 名: Lutino / Creamino Par-Blue / Whitefaced Par-Blue Creamino / Seagreen Par-Blue Creamino
+  ALBS の Blue (True)（*blue*）は、この計算機のパーブルー座位（+ / tq / aq）では扱えない。
+  シナモンイノ（cinnamon + ino、通称レースウィング）: ALBS に区分が無い（AOC）。名前は国際名に合わせ cinnamon ino。
+    INO が出ていてシナモンも出ていれば、基本色は「シナモンイノ〜」（例: オパーリンシナモンイノグリーン）。
+
 ■ 基底色の構成（12色）
 ─────────────────
               │ Dark dd      │ Dark Dd          │ Dark DD
@@ -159,10 +170,12 @@ tqaq          │ シーグリーン │ シーグリーンダーク│ シー�
 
 ■ 総色数
 ─────────────────
-310色以上（基底色12 × 変異形質の組み合わせ）
+314色（基底色12 × 変異形質の組み合わせ。うち ALBS の出陳区分がある色 176、区分の無い色（AOC）138）
 
 
 ■ 出典
 ─────────────────
 Lovebirds Compendium (Dirk Van den Abeele, 2016) p.228-231
-ALBS (African Lovebird Society) 命名規則準拠
+ALBS (African Love Bird Society) 2016 Show Classifications（Peachfaced, Section 5〜13）
+  https://africanlovebirdsociety.org/new-page → 2016-Classifications-One-Division
+  同サイトの国際名との対照表（2019-08-05 作成の PDF。2026-11-18 にサイトの最新版と同一であることを確認）

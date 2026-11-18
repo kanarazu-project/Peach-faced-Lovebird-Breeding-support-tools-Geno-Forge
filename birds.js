@@ -2012,8 +2012,9 @@ const BirdDB = {
             if (part.parblueOnly && !isParblue) continue;
             names.push(((isParblue && part.parblueName) ? part.parblueName : part.name)[lang]);
         }
+        const cinnamonIno = hasIno && !!geno.cinnamon && r.cinnamonInoGenotypes.includes(g('cinnamon'));
         const base = hasIno
-            ? (r.inoNames[parblue] || r.inoDefault)
+            ? (cinnamonIno ? (r.cinnamonInoNames[parblue] || r.cinnamonInoNames[r.wildParblue]) : (r.inoNames[parblue] || r.inoDefault))
             : ((r.baseNames[parblue] || {})[g('dark')] || r.baseDefault);
         names.push(base[lang]);
         return names.join(lang === 'ja' ? '' : ' ');

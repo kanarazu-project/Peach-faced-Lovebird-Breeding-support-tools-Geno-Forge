@@ -1,7 +1,7 @@
 <?php
 /**
  * Agapornis Gene-Forge v7.3
- * Genetics Calculation Engine (ALBS-compliant, 310+ colors)
+ * Genetics Calculation Engine (314 colours; ALBS show-class names where ALBS has a class, AOC otherwise)
  *
  * Chief Product Officer: Shohei T(Homo repugnans)
  * Tactical Decision Intelligence: Sirius (Electronic Spirit)
@@ -343,6 +343,95 @@ final class AgapornisLoci
         return implode(';', $parts);
     }
 
+    /**
+     * 国際名（ALBS の対照表の右列の書き方）の部品。この順に並べ、最後に濃さ（D / DD）と基本色を置く。
+     * allele・mode の意味は COLOR_NAME_PARTS と同じ（見た目のアレルで判定）。ALBS の対照表に無い変異
+     * （recessive pied・pale fallow・bronze fallow・dilute・pale headed）の名前は、ここで決めた呼び方。
+     */
+    private const INTL_NAME_PARTS = [
+        ['locus' => 'opaline', 'allele' => 'op', 'mode' => 'all', 'name' => 'opaline'],
+        ['locus' => 'pied_dom', 'allele' => 'Pi', 'mode' => 'any', 'name' => 'dominant pied'],
+        ['locus' => 'pied_rec', 'allele' => 'pi', 'mode' => 'all', 'name' => 'recessive pied'],
+        ['locus' => 'cinnamon', 'allele' => 'cin', 'mode' => 'all', 'name' => 'cinnamon'],
+        ['locus' => 'ino', 'allele' => 'pld', 'mode' => 'all', 'name' => 'pallid'],
+        ['locus' => 'ino', 'allele' => 'ino', 'mode' => 'all', 'name' => 'ino'],
+        ['locus' => 'fallow_pale', 'allele' => 'flp', 'mode' => 'all', 'name' => 'pale fallow'],
+        ['locus' => 'fallow_bronze', 'allele' => 'flb', 'mode' => 'all', 'name' => 'bronze fallow'],
+        ['locus' => 'dilute', 'allele' => 'dil', 'mode' => 'all', 'name' => 'dilute'],
+        ['locus' => 'pale_headed', 'allele' => 'ph', 'mode' => 'all', 'name' => 'pale headed'],
+        ['locus' => 'violet', 'allele' => 'V', 'mode' => 'any', 'name' => 'violet'],
+        ['locus' => 'orangeface', 'allele' => 'of', 'mode' => 'all', 'name' => 'orange face'],
+        ['locus' => 'edged', 'allele' => 'Ed', 'mode' => 'all', 'name' => 'marbled'],
+    ];
+    /** 国際名の基本色（パーブルーの見た目 → 名前）と濃さ（ダークの見た目 → 前置き） */
+    private const INTL_BASE_NAMES = ['++' => 'green', 'aqaq' => 'aqua', 'tqtq' => 'turquoise', 'tqaq' => 'AquaTurquoise'];
+    private const INTL_DARK_NAMES = ['Dd' => 'D', 'DD' => 'DD'];
+
+    /**
+     * 遺伝子型の国際名（例: "opaline cinnamon D aqua"、"cinnamon ino green"）。ALBS に区分の無い色（AOC）の名前に使う。
+     * 見た目（phenoForm）で判定するので、スプリットは名前に出ない。INO の発現時は濃さを付けない。
+     */
+    public static function internationalName(array $genotype): string
+    {
+        $loci = self::genotypeData()['loci'];
+        $look = function (string $l) use ($genotype, $loci): array {
+            $i = $loci[$l]['genotypes'][self::canonicalGenotype($l, (string)($genotype[$l] ?? self::wildGenotype($l)))] ?? null;
+            if ($i === null || $i['phenoForm'] === null) return [];
+            return $loci[$l]['genotypes'][$i['phenoForm']]['alleles'] ?? [];
+        };
+        $parts = [];
+        foreach (self::INTL_NAME_PARTS as $p) {
+            $al = $look($p['locus']);
+            $hits = count(array_filter($al, fn($a) => $a === $p['allele']));
+            if ($al && ($p['mode'] === 'any' ? $hits > 0 : $hits === count($al))) $parts[] = $p['name'];
+        }
+        $inoExpressed = in_array('ino', $parts, true);
+        $dark = $look('dark');
+        $darkForm = $dark ? (self::genotypeData()['loci']['dark']['byAlleles'][implode('|', (function ($a) { sort($a); return $a; })($dark))] ?? null) : null;
+        if (!$inoExpressed && $darkForm !== null && isset(self::INTL_DARK_NAMES[$darkForm])) $parts[] = self::INTL_DARK_NAMES[$darkForm];
+        $pb = $look('parblue');
+        $pbForm = $pb ? (self::genotypeData()['loci']['parblue']['byAlleles'][implode('|', (function ($a) { sort($a); return $a; })($pb))] ?? null) : null;
+        $parts[] = self::INTL_BASE_NAMES[$pbForm ?? self::wildGenotype('parblue')] ?? self::INTL_BASE_NAMES[self::wildGenotype('parblue')];
+        return implode(' ', $parts);
+    }
+
+    /**
+     * 色の ALBS 区分（ALBS_PEACHFACED_CLASSES の区分名）。'albs' が null の色、区分に当たらない色は null（AOC）。
+     * 'albs' の名前と区分名を、語の集合で照合する（Medium / Dark は「Medium and Dark 〜」か「〜 - All」の区分に入る）。
+     */
+    public static function albsClass(string $colorKey): ?string
+    {
+        $name = self::COLOR_DEFINITIONS[$colorKey]['albs'] ?? null;
+        if ($name === null) return null;
+        $norm = function (string $n): array {
+            $n = strtolower(str_replace(['Orangfaced', '( True )'], ['Orangefaced', '(True)'], $n));
+            $all = (bool)preg_match('/\s-\s*all$/', $n);
+            $n = preg_replace('/\s-\s*all$/', '', $n);
+            $w = preg_split('/\s+/', trim($n));
+            $md = in_array('medium', $w, true) || in_array('dark', $w, true);
+            $core = array_values(array_diff($w, ['medium', 'and', 'dark']));
+            sort($core);
+            return [implode(' ', $core), $md, $all];
+        };
+        [$core, $md] = $norm($name);
+        foreach (self::ALBS_PEACHFACED_CLASSES as $list) {
+            foreach ($list as $c) {
+                if (str_starts_with($c, 'AOC') || str_starts_with($c, 'Heavy') || str_contains($c, 'Dark-Eyed')) continue;
+                [$cc, $cmd, $all] = $norm($c);
+                // 「Pied Opaline Blue - All」の Blue は青系の系列（Par-Blue など）を指す
+                if ($c === 'Pied Opaline Blue - All') {
+                    $w = array_diff(explode(' ', $core), ['whitefaced', 'seagreen']);
+                    sort($w);
+                    if (implode(' ', $w) === 'opaline par-blue pied') return $c;
+                    continue;
+                }
+                if ($cc !== $core) continue;
+                if ($md ? ($cmd || $all) : !$cmd) return $c;
+            }
+        }
+        return null;
+    }
+
     /** 遺伝子型の色の署名（座位ごとの見た目）。genotypeData の colorKey.bySignature を引く鍵 */
     public static function genotypeSignature(array $genotype): string
     {
@@ -516,7 +605,7 @@ final class AgapornisLoci
         }
 
         // INO 型（パーブルー → INO 色）と、色キーの組み立て規則（COLOR_DEFINITIONS から導く）
-        $inoByParblue = []; $baseByParblue = []; $darkByParblue = [];
+        $inoByParblue = []; $baseByParblue = []; $darkByParblue = []; $cinnamonInoByParblue = [];
         foreach (self::COLOR_DEFINITIONS as $color => $def) {
             $g = $def['genotype'] ?? [];
             $keys = array_keys($g); sort($keys);
@@ -524,6 +613,11 @@ final class AgapornisLoci
             if ($pb === null) continue;
             if ($keys === ['ino', 'parblue'] && ($loci['ino']['genotypes'][$g['ino']]['mutant'] ?? []) === ['ino', 'ino']) {
                 $inoByParblue[$pb] = (string)$color;
+            }
+            // シナモンイノ（cinnamon + ino）: INO の発現時にシナモンも出ていれば、基本色はこの色の名前
+            if ($keys === ['cinnamon', 'ino', 'parblue'] && ($loci['ino']['genotypes'][$g['ino']]['mutant'] ?? []) === ['ino', 'ino']
+                && ($loci['cinnamon']['genotypes'][$g['cinnamon']]['expressed'] ?? false)) {
+                $cinnamonInoByParblue[$pb] = (string)$color;
             }
             if ($keys === ['dark', 'parblue']) {
                 $dose = $loci['dark']['genotypes'][$g['dark']]['dose'] ?? null;
@@ -570,6 +664,8 @@ final class AgapornisLoci
             'inoGenotypes' => $withAllele('ino', self::COLOR_NAME_INO_ALLELE, 'all'),
             'inoNames' => array_map($nameOf, $inoByParblue),
             'inoDefault' => $nameOf($inoByParblue[$wildParblue]),
+            'cinnamonInoGenotypes' => $withAllele('cinnamon', 'cin', 'all'),
+            'cinnamonInoNames' => array_map($nameOf, $cinnamonInoByParblue),
             'baseNames' => $baseNames,
             'baseDefault' => $nameOf($baseByParblue[$wildParblue]),
             'wildParblue' => $wildParblue,
@@ -688,6 +784,168 @@ final class AgapornisLoci
         'edged' => 'difficult',      // エッジド
     ];
 
+    /**
+     * ALBS（African Love Bird Society）の Peachfaced の出陳区分（2016 Show Classifications, Section 5〜13。区分名は原文どおり）。
+     * 出典: https://africanlovebirdsociety.org/new-page →「2016-Classifications-One-Division」。
+     * 同サイトの国際名との対照表（2019-08-05 作成の PDF）も同じ区分名。区分に無い色は各区分の AOC（Any Other Color）に入る。
+     * 色の定義の 'albs' は、ここに区分がある色だけが持つ（無い色は null。albsClass() と internationalName() を参照）。
+     */
+    public const ALBS_PEACHFACED_CLASSES = [
+        'Green Peachfaced' => [
+            'Green',
+            'Medium and Dark Green',
+            'Orangefaced Green',
+            'Orangefaced Medium and Dark Green',
+            'Violet Green - All',
+            'Edged Dilute Green - All',
+            'Orangefaced Edged Dilute Green - All',
+            'Lutino',
+            'Orangefaced Lutino',
+            'AOC Green Peachfaced',
+        ],
+        'Blue Peachfaced' => [
+            'Par-Blue',
+            'Medium and Dark Par-Blue',
+            'Blue (True)',
+            'Medium and Dark Blue (True)',
+            'Whitefaced Par-Blue',
+            'Medium and Dark Whitefaced Par-Blue',
+            'Seagreen Par-Blue - All',
+            'Yellowfaced Par-Blue - All',
+            'Edged Dilute Par-Blue - All',
+            'Whitefaced Edged Dilute Par-Blue - All',
+            'Edged Dilute Blue (True) - All',
+            'Creamino Par-Blue',
+            'Whitefaced Par-Blue Creamino',
+            'Seagreen Par-Blue Creamino',
+            'Albino (True)',
+            'AOC Blue Peachfaced',
+        ],
+        'Green Pied Peachfaced' => [
+            'Pied Green',
+            'Pied Medium and Dark Green',
+            'Pied Orangefaced Green - All',
+            'Heavy Pied Green',
+            'Heavy Pied Medium and Dark Green',
+            'Heavy Pied Orangefaced Green - All',
+            'Pied Violet Green - All',
+            'Pied American Cinnamon Green - All',
+            'Pied Australian Cinnamon Green - All',
+            'Dark-Eyed Clear Yellow (> 90 % Yellow)',
+            'Orangefaced Dark-Eyed Clear Yellow (> 90 % Yellow)',
+            'Pied Edged Dilute Green - All',
+            'Pied Opaline Green - All',
+            'AOC Green Pied Peachfaced',
+        ],
+        'Blue Pied Peachfaced' => [
+            'Pied Par-Blue',
+            'Pied Medium and Dark Par-Blue',
+            'Pied Blue (True) - All',
+            'Pied Whitefaced Par-Blue - All',
+            'Pied Seagreen Par-Blue - All',
+            'Heavy Pied Par-Blue',
+            'Heavy Pied Medium and Dark Par-Blue',
+            'Heavy Pied Whitefaced Par-Blue - All',
+            'Heavy Pied Seagreen Par-Blue - All',
+            'Pied Yellowfaced Par-Blue - All',
+            'Pied Violet Par-Blue - All',
+            'Pied Violet Blue (True) - All',
+            'Pied American Cinnamon Par-Blue - All',
+            'Pied American Cinnamon Blue (True) - All',
+            'Pied Australian Cinnamon Par-Blue - All',
+            'Pied Australian Cinnamon Blue (True) - All',
+            'Dark-Eyed Clear Par-Blue ( >90% Cream ) - All',
+            'Dark-Eyed Clear Blue (True) ( >90% Clear ) - All',
+            'Pied Edged Dilute Par-Blue - All',
+            'Pied Edged Dilute Blue (True) - All',
+            'Pied Opaline Blue - All',
+            'AOC Blue Pied Peachfaced',
+        ],
+        'American Cinnamon Peachfaced' => [
+            'American Cinnamon Green',
+            'American Cinnamon Medium and Dark Green',
+            'American Cinnamon Orangefaced Green - All',
+            'American Cinnamon Violet Green - All',
+            'American Cinnamon Par-Blue',
+            'American Cinnamon Medium and Dark Par-Blue',
+            'American Cinnamon Blue (True) - All',
+            'American Cinnamon Whitefaced Par-Blue - All',
+            'American Cinnamon Seagreen Par-Blue - All',
+            'American Cinnamon Yellowfaced Par-Blue - All',
+            'American Cinnamon Violet Par-Blue - All',
+            'American Cinnamon Violet Blue ( True ) - All',
+            'AOC American Cinnamon Peachfaced',
+        ],
+        'Australian Cinnamon Peachfaced' => [
+            'Australian Cinnamon Green',
+            'Australian Cinnamon Medium and Dark Green',
+            'Australian Cinnamon Orangefaced Green - All',
+            'Australian Cinnamon Violet Green - All',
+            'Australian Cinnamon Par-Blue',
+            'Australian Cinnamon Medium and Dark Par-Blue',
+            'Australian Cinnamon Blue (True) - All',
+            'Australian Cinnamon Whitefaced Par-Blue - All',
+            'Australian Cinnamon Seagreen Par-Blue - All',
+            'Australian Cinnamon Yellowfaced Par-Blue - All',
+            'Australian Cinnamon Violet Par-Blue - All',
+            'Australian Cinnamon Violet Blue (True) - All',
+            'AOC Australian Cinnamon Peachfaced',
+        ],
+        'Violet Blue Peachfaced' => [
+            'Violet Par-Blue - All',
+            'Violet Blue ( True ) - All',
+            'Violet Whitefaced Par-Blue',
+            'Violet Whitefaced Medium and Dark Par-Blue',
+            'Violet Seagreen Par-Blue - All',
+            'Violet Yellowfaced Par-Blue - All',
+            'Violet Yellowfaced Seagreen Par-Blue - All',
+            'Violet Edged Dilute Par-Blue - All',
+            'Violet Edged Dilute Blue (True) - All',
+            'Violet Seagreen Par-Blue Edged Dilute - All',
+            'Violet Whitefaced Par-Blue Edged Dilute - All',
+            'AOC Violet Blue Peachfaced',
+        ],
+        'Green Opaline Peachfaced' => [
+            'Opaline Green',
+            'Opaline Medium and Dark Green',
+            'Opaline Orangfaced Green',
+            'Opaline Orangefaced Medium and Dark Green',
+            'Opaline Violet Green - All',
+            'Opaline Edged Dilute Green - All',
+            'Opaline Lutino',
+            'Opaline Orangefaced Lutino',
+            'Opaline American Cinnamon Green - All',
+            'Opaline American Cinnamon Orangefaced Green - All',
+            'Opaline Australian Cinnamon Green - All',
+            'Opaline Australian Cinnamon Orangefaced Green - All',
+            'AOC Green Opaline Peachfaced',
+        ],
+        'Blue Opaline Peachfaced' => [
+            'Opaline Par-Blue',
+            'Opaline Medium and Dark Par-Blue',
+            'Opaline Blue (True)',
+            'Opaline Medium and Dark Blue (True)',
+            'Opaline Whitefaced Par-Blue',
+            'Opaline Medium and Dark Whitefaced Par-Blue',
+            'Opaline Seagreen Par-Blue - All',
+            'Opaline Yellowfaced Par-Blue - All',
+            'Opaline Yellowfaced Seagreen Par-Blue - All',
+            'Opaline Edged Dilute Par-Blue - All',
+            'Opaline Whitefaced Edged Dilute Par-Blue - All',
+            'Opaline Edged Dilute Blue (True) - All',
+            'Opaline Creamino',
+            'Opaline Whitefaced Par-Blue Creamino',
+            'Opaline Seagreen Par-Blue Creamino',
+            'Opaline Violet Par-Blue - All',
+            'Opaline Violet Blue (True) - All',
+            'Opaline American Cinnamon Par-Blue - All',
+            'Opaline American Cinnamon Blue (True) - All',
+            'Opaline Australian Cinnamon Par-Blue - All',
+            'Opaline Australian Cinnamon Blue (True) - All',
+            'AOC Blue Opaline Peachfaced',
+        ],
+    ];
+
     public const COLOR_DEFINITIONS = [
         // 基底色（12色）
         'green'=>['ja'=>'グリーン','en'=>'Green','albs'=>'Green','genotype'=>['parblue'=>'++','dark'=>'dd'],'eye'=>'black','category'=>'green'],
@@ -705,8 +963,13 @@ final class AgapornisLoci
         // INO（4色）
         'lutino'=>['ja'=>'ルチノー','en'=>'Lutino','albs'=>'Lutino','genotype'=>['parblue'=>'++','ino'=>'inoino'],'eye'=>'red','category'=>'ino'],
         'creamino'=>['ja'=>'クリーミノ','en'=>'Creamino','albs'=>'Creamino Par-Blue','genotype'=>['parblue'=>'aqaq','ino'=>'inoino'],'eye'=>'red','category'=>'ino'],
-        'creamino_seagreen'=>['ja'=>'クリーミノシーグリーン','en'=>'Creamino Seagreen','albs'=>'Seagreen Creamino','genotype'=>['parblue'=>'tqaq','ino'=>'inoino'],'eye'=>'red','category'=>'ino'],
-        'pure_white'=>['ja'=>'ピュアホワイト','en'=>'Pure White','albs'=>'Whitefaced Creamino','genotype'=>['parblue'=>'tqtq','ino'=>'inoino'],'eye'=>'red','category'=>'ino'],
+        'creamino_seagreen'=>['ja'=>'クリーミノシーグリーン','en'=>'Creamino Seagreen','albs'=>'Seagreen Par-Blue Creamino','genotype'=>['parblue'=>'tqaq','ino'=>'inoino'],'eye'=>'red','category'=>'ino'],
+        'pure_white'=>['ja'=>'ピュアホワイト','en'=>'Pure White','albs'=>'Whitefaced Par-Blue Creamino','genotype'=>['parblue'=>'tqtq','ino'=>'inoino'],'eye'=>'red','category'=>'ino'],
+        // シナモンイノ（4色。cinnamon + ino。ALBS に区分が無く AOC。名前は国際名 cinnamon ino に合わせる）
+        'cinnamon_ino_green'=>['ja'=>'シナモンイノグリーン','en'=>'Cinnamon Ino Green','albs'=>null,'genotype'=>['parblue'=>'++','cinnamon'=>'cincin','ino'=>'inoino'],'eye'=>'red','category'=>'ino','tier'=>2],
+        'cinnamon_ino_aqua'=>['ja'=>'シナモンイノアクア','en'=>'Cinnamon Ino Aqua','albs'=>null,'genotype'=>['parblue'=>'aqaq','cinnamon'=>'cincin','ino'=>'inoino'],'eye'=>'red','category'=>'ino','tier'=>2],
+        'cinnamon_ino_turquoise'=>['ja'=>'シナモンイノターコイズ','en'=>'Cinnamon Ino Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','cinnamon'=>'cincin','ino'=>'inoino'],'eye'=>'red','category'=>'ino','tier'=>2],
+        'cinnamon_ino_seagreen'=>['ja'=>'シナモンイノシーグリーン','en'=>'Cinnamon Ino Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','cinnamon'=>'cincin','ino'=>'inoino'],'eye'=>'red','category'=>'ino','tier'=>2],
         // Pallid（12色）
         'pallid_green'=>['ja'=>'パリッドグリーン','en'=>'Pallid Green','albs'=>'Australian Cinnamon Green','genotype'=>['parblue'=>'++','dark'=>'dd','ino'=>'pldpld'],'eye'=>'black','category'=>'pallid'],
         'pallid_darkgreen'=>['ja'=>'パリッドダークグリーン','en'=>'Pallid Dark Green','albs'=>'Australian Cinnamon Medium Green','genotype'=>['parblue'=>'++','dark'=>'Dd','ino'=>'pldpld'],'eye'=>'black','category'=>'pallid'],
@@ -757,33 +1020,33 @@ final class AgapornisLoci
         'violet_seagreen_dark'=>['ja'=>'バイオレットシーグリーンダーク','en'=>'Violet Seagreen Dark','albs'=>'Violet Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','violet'=>'Vv'],'eye'=>'black','category'=>'violet'],
         'violet_seagreen_olive'=>['ja'=>'バイオレットシーグリーンオリーブ','en'=>'Violet Seagreen Olive','albs'=>'Violet Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','violet'=>'Vv'],'eye'=>'black','category'=>'violet'],
         // Pale Fallow（12色）
-        'fallow_pale_green'=>['ja'=>'ペールファローグリーン','en'=>'Pale Fallow Green','albs'=>'Pale Fallow Green','genotype'=>['parblue'=>'++','dark'=>'dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
-        'fallow_pale_darkgreen'=>['ja'=>'ペールファローダークグリーン','en'=>'Pale Fallow Dark Green','albs'=>'Pale Fallow Medium Green','genotype'=>['parblue'=>'++','dark'=>'Dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
-        'fallow_pale_olive'=>['ja'=>'ペールファローオリーブ','en'=>'Pale Fallow Olive','albs'=>'Pale Fallow Dark Green','genotype'=>['parblue'=>'++','dark'=>'DD','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
-        'fallow_pale_aqua'=>['ja'=>'ペールファローアクア','en'=>'Pale Fallow Aqua','albs'=>'Pale Fallow Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
-        'fallow_pale_aqua_dark'=>['ja'=>'ペールファローアクアダーク','en'=>'Pale Fallow Aqua Dark','albs'=>'Pale Fallow Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
-        'fallow_pale_aqua_olive'=>['ja'=>'ペールファローアクアオリーブ','en'=>'Pale Fallow Aqua Olive','albs'=>'Pale Fallow Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
+        'fallow_pale_green'=>['ja'=>'ペールファローグリーン','en'=>'Pale Fallow Green','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
+        'fallow_pale_darkgreen'=>['ja'=>'ペールファローダークグリーン','en'=>'Pale Fallow Dark Green','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'Dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
+        'fallow_pale_olive'=>['ja'=>'ペールファローオリーブ','en'=>'Pale Fallow Olive','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'DD','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
+        'fallow_pale_aqua'=>['ja'=>'ペールファローアクア','en'=>'Pale Fallow Aqua','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
+        'fallow_pale_aqua_dark'=>['ja'=>'ペールファローアクアダーク','en'=>'Pale Fallow Aqua Dark','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'Dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
+        'fallow_pale_aqua_olive'=>['ja'=>'ペールファローアクアオリーブ','en'=>'Pale Fallow Aqua Olive','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'DD','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
         
-                'fallow_pale_turquoise'=>['ja'=>'ペールファローターコイズ','en'=>'Pale Fallow Turquoise','albs'=>'Pale Fallow Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
-        'fallow_pale_turquoise_dark'=>['ja'=>'ペールファローターコイズダーク','en'=>'Pale Fallow Turquoise Dark','albs'=>'Pale Fallow Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
-        'fallow_pale_turquoise_olive'=>['ja'=>'ペールファローターコイズオリーブ','en'=>'Pale Fallow Turquoise Olive','albs'=>'Pale Fallow Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
-        'fallow_pale_seagreen'=>['ja'=>'ペールファローシーグリーン','en'=>'Pale Fallow Seagreen','albs'=>'Pale Fallow Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
-        'fallow_pale_seagreen_dark'=>['ja'=>'ペールファローシーグリーンダーク','en'=>'Pale Fallow Seagreen Dark','albs'=>'Pale Fallow Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
-        'fallow_pale_seagreen_olive'=>['ja'=>'ペールファローシーグリーンオリーブ','en'=>'Pale Fallow Seagreen Olive','albs'=>'Pale Fallow Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
+                'fallow_pale_turquoise'=>['ja'=>'ペールファローターコイズ','en'=>'Pale Fallow Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
+        'fallow_pale_turquoise_dark'=>['ja'=>'ペールファローターコイズダーク','en'=>'Pale Fallow Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
+        'fallow_pale_turquoise_olive'=>['ja'=>'ペールファローターコイズオリーブ','en'=>'Pale Fallow Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
+        'fallow_pale_seagreen'=>['ja'=>'ペールファローシーグリーン','en'=>'Pale Fallow Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
+        'fallow_pale_seagreen_dark'=>['ja'=>'ペールファローシーグリーンダーク','en'=>'Pale Fallow Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
+        'fallow_pale_seagreen_olive'=>['ja'=>'ペールファローシーグリーンオリーブ','en'=>'Pale Fallow Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','fallow_pale'=>'flpflp'],'eye'=>'red','category'=>'fallow_pale'],
 
         // Bronze Fallow（12色）
-        'fallow_bronze_green'=>['ja'=>'ブロンズファローグリーン','en'=>'Bronze Fallow Green','albs'=>'Bronze Fallow Green','genotype'=>['parblue'=>'++','dark'=>'dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
-        'fallow_bronze_darkgreen'=>['ja'=>'ブロンズファローダークグリーン','en'=>'Bronze Fallow Dark Green','albs'=>'Bronze Fallow Medium Green','genotype'=>['parblue'=>'++','dark'=>'Dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
-        'fallow_bronze_olive'=>['ja'=>'ブロンズファローオリーブ','en'=>'Bronze Fallow Olive','albs'=>'Bronze Fallow Dark Green','genotype'=>['parblue'=>'++','dark'=>'DD','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
-        'fallow_bronze_aqua'=>['ja'=>'ブロンズファローアクア','en'=>'Bronze Fallow Aqua','albs'=>'Bronze Fallow Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
-        'fallow_bronze_aqua_dark'=>['ja'=>'ブロンズファローアクアダーク','en'=>'Bronze Fallow Aqua Dark','albs'=>'Bronze Fallow Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
-        'fallow_bronze_aqua_olive'=>['ja'=>'ブロンズファローアクアオリーブ','en'=>'Bronze Fallow Aqua Olive','albs'=>'Bronze Fallow Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
-        'fallow_bronze_turquoise'=>['ja'=>'ブロンズファローターコイズ','en'=>'Bronze Fallow Turquoise','albs'=>'Bronze Fallow Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
-        'fallow_bronze_turquoise_dark'=>['ja'=>'ブロンズファローターコイズダーク','en'=>'Bronze Fallow Turquoise Dark','albs'=>'Bronze Fallow Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
-        'fallow_bronze_turquoise_olive'=>['ja'=>'ブロンズファローターコイズオリーブ','en'=>'Bronze Fallow Turquoise Olive','albs'=>'Bronze Fallow Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
-        'fallow_bronze_seagreen'=>['ja'=>'ブロンズファローシーグリーン','en'=>'Bronze Fallow Seagreen','albs'=>'Bronze Fallow Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
-        'fallow_bronze_seagreen_dark'=>['ja'=>'ブロンズファローシーグリーンダーク','en'=>'Bronze Fallow Seagreen Dark','albs'=>'Bronze Fallow Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
-        'fallow_bronze_seagreen_olive'=>['ja'=>'ブロンズファローシーグリーンオリーブ','en'=>'Bronze Fallow Seagreen Olive','albs'=>'Bronze Fallow Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
+        'fallow_bronze_green'=>['ja'=>'ブロンズファローグリーン','en'=>'Bronze Fallow Green','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
+        'fallow_bronze_darkgreen'=>['ja'=>'ブロンズファローダークグリーン','en'=>'Bronze Fallow Dark Green','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'Dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
+        'fallow_bronze_olive'=>['ja'=>'ブロンズファローオリーブ','en'=>'Bronze Fallow Olive','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'DD','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
+        'fallow_bronze_aqua'=>['ja'=>'ブロンズファローアクア','en'=>'Bronze Fallow Aqua','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
+        'fallow_bronze_aqua_dark'=>['ja'=>'ブロンズファローアクアダーク','en'=>'Bronze Fallow Aqua Dark','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'Dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
+        'fallow_bronze_aqua_olive'=>['ja'=>'ブロンズファローアクアオリーブ','en'=>'Bronze Fallow Aqua Olive','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'DD','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
+        'fallow_bronze_turquoise'=>['ja'=>'ブロンズファローターコイズ','en'=>'Bronze Fallow Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
+        'fallow_bronze_turquoise_dark'=>['ja'=>'ブロンズファローターコイズダーク','en'=>'Bronze Fallow Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
+        'fallow_bronze_turquoise_olive'=>['ja'=>'ブロンズファローターコイズオリーブ','en'=>'Bronze Fallow Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
+        'fallow_bronze_seagreen'=>['ja'=>'ブロンズファローシーグリーン','en'=>'Bronze Fallow Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
+        'fallow_bronze_seagreen_dark'=>['ja'=>'ブロンズファローシーグリーンダーク','en'=>'Bronze Fallow Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
+        'fallow_bronze_seagreen_olive'=>['ja'=>'ブロンズファローシーグリーンオリーブ','en'=>'Bronze Fallow Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','fallow_bronze'=>'flbflb'],'eye'=>'red','category'=>'fallow_bronze'],
         // Dominant Pied（12色）
         'pied_dom_green'=>['ja'=>'ドミナントパイドグリーン','en'=>'Dominant Pied Green','albs'=>'Pied Green','genotype'=>['parblue'=>'++','dark'=>'dd','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'pied_dom'],
         'pied_dom_darkgreen'=>['ja'=>'ドミナントパイドダークグリーン','en'=>'Dominant Pied Dark Green','albs'=>'Pied Medium Green','genotype'=>['parblue'=>'++','dark'=>'Dd','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'pied_dom'],
@@ -798,31 +1061,31 @@ final class AgapornisLoci
         'pied_dom_seagreen_dark'=>['ja'=>'ドミナントパイドシーグリーンダーク','en'=>'Dominant Pied Seagreen Dark','albs'=>'Pied Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'pied_dom'],
         'pied_dom_seagreen_olive'=>['ja'=>'ドミナントパイドシーグリーンオリーブ','en'=>'Dominant Pied Seagreen Olive','albs'=>'Pied Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'pied_dom'],
         // Recessive Pied（12色）
-        'pied_rec_green'=>['ja'=>'レセッシブパイドグリーン','en'=>'Recessive Pied Green','albs'=>'Recessive Pied Green','genotype'=>['parblue'=>'++','dark'=>'dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
-        'pied_rec_darkgreen'=>['ja'=>'レセッシブパイドダークグリーン','en'=>'Recessive Pied Dark Green','albs'=>'Recessive Pied Medium Green','genotype'=>['parblue'=>'++','dark'=>'Dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
-        'pied_rec_olive'=>['ja'=>'レセッシブパイドオリーブ','en'=>'Recessive Pied Olive','albs'=>'Recessive Pied Dark Green','genotype'=>['parblue'=>'++','dark'=>'DD','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
-        'pied_rec_aqua'=>['ja'=>'レセッシブパイドアクア','en'=>'Recessive Pied Aqua','albs'=>'Recessive Pied Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
-        'pied_rec_aqua_dark'=>['ja'=>'レセッシブパイドアクアダーク','en'=>'Recessive Pied Aqua Dark','albs'=>'Recessive Pied Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
-        'pied_rec_aqua_olive'=>['ja'=>'レセッシブパイドアクアオリーブ','en'=>'Recessive Pied Aqua Olive','albs'=>'Recessive Pied Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
-        'pied_rec_turquoise'=>['ja'=>'レセッシブパイドターコイズ','en'=>'Recessive Pied Turquoise','albs'=>'Recessive Pied Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
-        'pied_rec_turquoise_dark'=>['ja'=>'レセッシブパイドターコイズダーク','en'=>'Recessive Pied Turquoise Dark','albs'=>'Recessive Pied Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
-        'pied_rec_turquoise_olive'=>['ja'=>'レセッシブパイドターコイズオリーブ','en'=>'Recessive Pied Turquoise Olive','albs'=>'Recessive Pied Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
-        'pied_rec_seagreen'=>['ja'=>'レセッシブパイドシーグリーン','en'=>'Recessive Pied Seagreen','albs'=>'Recessive Pied Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
-        'pied_rec_seagreen_dark'=>['ja'=>'レセッシブパイドシーグリーンダーク','en'=>'Recessive Pied Seagreen Dark','albs'=>'Recessive Pied Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
-        'pied_rec_seagreen_olive'=>['ja'=>'レセッシブパイドシーグリーンオリーブ','en'=>'Recessive Pied Seagreen Olive','albs'=>'Recessive Pied Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
+        'pied_rec_green'=>['ja'=>'レセッシブパイドグリーン','en'=>'Recessive Pied Green','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
+        'pied_rec_darkgreen'=>['ja'=>'レセッシブパイドダークグリーン','en'=>'Recessive Pied Dark Green','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'Dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
+        'pied_rec_olive'=>['ja'=>'レセッシブパイドオリーブ','en'=>'Recessive Pied Olive','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'DD','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
+        'pied_rec_aqua'=>['ja'=>'レセッシブパイドアクア','en'=>'Recessive Pied Aqua','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
+        'pied_rec_aqua_dark'=>['ja'=>'レセッシブパイドアクアダーク','en'=>'Recessive Pied Aqua Dark','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'Dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
+        'pied_rec_aqua_olive'=>['ja'=>'レセッシブパイドアクアオリーブ','en'=>'Recessive Pied Aqua Olive','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'DD','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
+        'pied_rec_turquoise'=>['ja'=>'レセッシブパイドターコイズ','en'=>'Recessive Pied Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
+        'pied_rec_turquoise_dark'=>['ja'=>'レセッシブパイドターコイズダーク','en'=>'Recessive Pied Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
+        'pied_rec_turquoise_olive'=>['ja'=>'レセッシブパイドターコイズオリーブ','en'=>'Recessive Pied Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
+        'pied_rec_seagreen'=>['ja'=>'レセッシブパイドシーグリーン','en'=>'Recessive Pied Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
+        'pied_rec_seagreen_dark'=>['ja'=>'レセッシブパイドシーグリーンダーク','en'=>'Recessive Pied Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
+        'pied_rec_seagreen_olive'=>['ja'=>'レセッシブパイドシーグリーンオリーブ','en'=>'Recessive Pied Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','pied_rec'=>'pipi'],'eye'=>'black','category'=>'pied_rec'],
         // Dilute（12色）
-        'dilute_green'=>['ja'=>'ダイリュートグリーン','en'=>'Dilute Green','albs'=>'Dilute Green','genotype'=>['parblue'=>'++','dark'=>'dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
-        'dilute_darkgreen'=>['ja'=>'ダイリュートダークグリーン','en'=>'Dilute Dark Green','albs'=>'Dilute Medium Green','genotype'=>['parblue'=>'++','dark'=>'Dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
-        'dilute_olive'=>['ja'=>'ダイリュートオリーブ','en'=>'Dilute Olive','albs'=>'Dilute Dark Green','genotype'=>['parblue'=>'++','dark'=>'DD','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
-        'dilute_aqua'=>['ja'=>'ダイリュートアクア','en'=>'Dilute Aqua','albs'=>'Dilute Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
-        'dilute_aqua_dark'=>['ja'=>'ダイリュートアクアダーク','en'=>'Dilute Aqua Dark','albs'=>'Dilute Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
-        'dilute_aqua_olive'=>['ja'=>'ダイリュートアクアオリーブ','en'=>'Dilute Aqua Olive','albs'=>'Dilute Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
-        'dilute_turquoise'=>['ja'=>'ダイリュートターコイズ','en'=>'Dilute Turquoise','albs'=>'Dilute Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
-        'dilute_turquoise_dark'=>['ja'=>'ダイリュートターコイズダーク','en'=>'Dilute Turquoise Dark','albs'=>'Dilute Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
-        'dilute_turquoise_olive'=>['ja'=>'ダイリュートターコイズオリーブ','en'=>'Dilute Turquoise Olive','albs'=>'Dilute Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
-        'dilute_seagreen'=>['ja'=>'ダイリュートシーグリーン','en'=>'Dilute Seagreen','albs'=>'Dilute Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
-        'dilute_seagreen_dark'=>['ja'=>'ダイリュートシーグリーンダーク','en'=>'Dilute Seagreen Dark','albs'=>'Dilute Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
-        'dilute_seagreen_olive'=>['ja'=>'ダイリュートシーグリーンオリーブ','en'=>'Dilute Seagreen Olive','albs'=>'Dilute Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
+        'dilute_green'=>['ja'=>'ダイリュートグリーン','en'=>'Dilute Green','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
+        'dilute_darkgreen'=>['ja'=>'ダイリュートダークグリーン','en'=>'Dilute Dark Green','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'Dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
+        'dilute_olive'=>['ja'=>'ダイリュートオリーブ','en'=>'Dilute Olive','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'DD','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
+        'dilute_aqua'=>['ja'=>'ダイリュートアクア','en'=>'Dilute Aqua','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
+        'dilute_aqua_dark'=>['ja'=>'ダイリュートアクアダーク','en'=>'Dilute Aqua Dark','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'Dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
+        'dilute_aqua_olive'=>['ja'=>'ダイリュートアクアオリーブ','en'=>'Dilute Aqua Olive','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'DD','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
+        'dilute_turquoise'=>['ja'=>'ダイリュートターコイズ','en'=>'Dilute Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
+        'dilute_turquoise_dark'=>['ja'=>'ダイリュートターコイズダーク','en'=>'Dilute Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
+        'dilute_turquoise_olive'=>['ja'=>'ダイリュートターコイズオリーブ','en'=>'Dilute Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
+        'dilute_seagreen'=>['ja'=>'ダイリュートシーグリーン','en'=>'Dilute Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
+        'dilute_seagreen_dark'=>['ja'=>'ダイリュートシーグリーンダーク','en'=>'Dilute Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
+        'dilute_seagreen_olive'=>['ja'=>'ダイリュートシーグリーンオリーブ','en'=>'Dilute Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','dilute'=>'dildil'],'eye'=>'black','category'=>'dilute'],
         // Orangefaced（12色）- parblue系はYellowfaced
         'orangefaced_green'=>['ja'=>'オレンジフェイスグリーン','en'=>'Orangefaced Green','albs'=>'Orangefaced Green','genotype'=>['parblue'=>'++','dark'=>'dd','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
         'orangefaced_darkgreen'=>['ja'=>'オレンジフェイスダークグリーン','en'=>'Orangefaced Dark Green','albs'=>'Orangefaced Medium Green','genotype'=>['parblue'=>'++','dark'=>'Dd','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
@@ -830,12 +1093,12 @@ final class AgapornisLoci
         'yellowfaced_aqua'=>['ja'=>'イエローフェイスアクア','en'=>'Yellowfaced Aqua','albs'=>'Yellowfaced Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
         'yellowfaced_aqua_dark'=>['ja'=>'イエローフェイスアクアダーク','en'=>'Yellowfaced Aqua Dark','albs'=>'Yellowfaced Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
         'yellowfaced_aqua_olive'=>['ja'=>'イエローフェイスアクアオリーブ','en'=>'Yellowfaced Aqua Olive','albs'=>'Yellowfaced Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
-        'yellowfaced_turquoise'=>['ja'=>'イエローフェイスターコイズ','en'=>'Yellowfaced Turquoise','albs'=>'Yellowfaced Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
-        'yellowfaced_turquoise_dark'=>['ja'=>'イエローフェイスターコイズダーク','en'=>'Yellowfaced Turquoise Dark','albs'=>'Yellowfaced Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
-        'yellowfaced_turquoise_olive'=>['ja'=>'イエローフェイスターコイズオリーブ','en'=>'Yellowfaced Turquoise Olive','albs'=>'Yellowfaced Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
-        'yellowfaced_seagreen'=>['ja'=>'イエローフェイスシーグリーン','en'=>'Yellowfaced Seagreen','albs'=>'Yellowfaced Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
-        'yellowfaced_seagreen_dark'=>['ja'=>'イエローフェイスシーグリーンダーク','en'=>'Yellowfaced Seagreen Dark','albs'=>'Yellowfaced Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
-        'yellowfaced_seagreen_olive'=>['ja'=>'イエローフェイスシーグリーンオリーブ','en'=>'Yellowfaced Seagreen Olive','albs'=>'Yellowfaced Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
+        'yellowfaced_turquoise'=>['ja'=>'イエローフェイスターコイズ','en'=>'Yellowfaced Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
+        'yellowfaced_turquoise_dark'=>['ja'=>'イエローフェイスターコイズダーク','en'=>'Yellowfaced Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
+        'yellowfaced_turquoise_olive'=>['ja'=>'イエローフェイスターコイズオリーブ','en'=>'Yellowfaced Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
+        'yellowfaced_seagreen'=>['ja'=>'イエローフェイスシーグリーン','en'=>'Yellowfaced Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
+        'yellowfaced_seagreen_dark'=>['ja'=>'イエローフェイスシーグリーンダーク','en'=>'Yellowfaced Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
+        'yellowfaced_seagreen_olive'=>['ja'=>'イエローフェイスシーグリーンオリーブ','en'=>'Yellowfaced Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','orangeface'=>'ofof'],'eye'=>'black','category'=>'orangeface'],
         // Edged（12色）
         'edged_green'=>['ja'=>'エッジドグリーン','en'=>'Edged Green','albs'=>'Edged Dilute Green','genotype'=>['parblue'=>'++','dark'=>'dd','edged'=>'EdEd'],'eye'=>'black','category'=>'edged'],
         'edged_darkgreen'=>['ja'=>'エッジドダークグリーン','en'=>'Edged Dark Green','albs'=>'Edged Dilute Medium Green','genotype'=>['parblue'=>'++','dark'=>'Dd','edged'=>'EdEd'],'eye'=>'black','category'=>'edged'],
@@ -846,29 +1109,29 @@ final class AgapornisLoci
         'edged_turquoise'=>['ja'=>'エッジドターコイズ','en'=>'Edged Turquoise','albs'=>'Edged Dilute Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','edged'=>'EdEd'],'eye'=>'black','category'=>'edged'],
         'edged_turquoise_dark'=>['ja'=>'エッジドターコイズダーク','en'=>'Edged Turquoise Dark','albs'=>'Edged Dilute Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','edged'=>'EdEd'],'eye'=>'black','category'=>'edged'],
         'edged_turquoise_olive'=>['ja'=>'エッジドターコイズオリーブ','en'=>'Edged Turquoise Olive','albs'=>'Edged Dilute Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','edged'=>'EdEd'],'eye'=>'black','category'=>'edged'],
-        'edged_seagreen'=>['ja'=>'エッジドシーグリーン','en'=>'Edged Seagreen','albs'=>'Edged Dilute Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','edged'=>'EdEd'],'eye'=>'black','category'=>'edged'],
-        'edged_seagreen_dark'=>['ja'=>'エッジドシーグリーンダーク','en'=>'Edged Seagreen Dark','albs'=>'Edged Dilute Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','edged'=>'EdEd'],'eye'=>'black','category'=>'edged'],
-        'edged_seagreen_olive'=>['ja'=>'エッジドシーグリーンオリーブ','en'=>'Edged Seagreen Olive','albs'=>'Edged Dilute Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','edged'=>'EdEd'],'eye'=>'black','category'=>'edged'],
+        'edged_seagreen'=>['ja'=>'エッジドシーグリーン','en'=>'Edged Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','edged'=>'EdEd'],'eye'=>'black','category'=>'edged'],
+        'edged_seagreen_dark'=>['ja'=>'エッジドシーグリーンダーク','en'=>'Edged Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','edged'=>'EdEd'],'eye'=>'black','category'=>'edged'],
+        'edged_seagreen_olive'=>['ja'=>'エッジドシーグリーンオリーブ','en'=>'Edged Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','edged'=>'EdEd'],'eye'=>'black','category'=>'edged'],
         // Pale Headed（12色）
-        'paleheaded_green'=>['ja'=>'ペールヘッドグリーン','en'=>'Pale Headed Green','albs'=>'Pale Headed Green','genotype'=>['parblue'=>'++','dark'=>'dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
-        'paleheaded_darkgreen'=>['ja'=>'ペールヘッドダークグリーン','en'=>'Pale Headed Dark Green','albs'=>'Pale Headed Medium Green','genotype'=>['parblue'=>'++','dark'=>'Dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
-        'paleheaded_olive'=>['ja'=>'ペールヘッドオリーブ','en'=>'Pale Headed Olive','albs'=>'Pale Headed Dark Green','genotype'=>['parblue'=>'++','dark'=>'DD','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
-        'paleheaded_aqua'=>['ja'=>'ペールヘッドアクア','en'=>'Pale Headed Aqua','albs'=>'Pale Headed Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
-        'paleheaded_aqua_dark'=>['ja'=>'ペールヘッドアクアダーク','en'=>'Pale Headed Aqua Dark','albs'=>'Pale Headed Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
-        'paleheaded_aqua_olive'=>['ja'=>'ペールヘッドアクアオリーブ','en'=>'Pale Headed Aqua Olive','albs'=>'Pale Headed Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
-        'paleheaded_turquoise'=>['ja'=>'ペールヘッドターコイズ','en'=>'Pale Headed Turquoise','albs'=>'Pale Headed Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
-        'paleheaded_turquoise_dark'=>['ja'=>'ペールヘッドターコイズダーク','en'=>'Pale Headed Turquoise Dark','albs'=>'Pale Headed Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
-        'paleheaded_turquoise_olive'=>['ja'=>'ペールヘッドターコイズオリーブ','en'=>'Pale Headed Turquoise Olive','albs'=>'Pale Headed Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
-        'paleheaded_seagreen'=>['ja'=>'ペールヘッドシーグリーン','en'=>'Pale Headed Seagreen','albs'=>'Pale Headed Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
-        'paleheaded_seagreen_dark'=>['ja'=>'ペールヘッドシーグリーンダーク','en'=>'Pale Headed Seagreen Dark','albs'=>'Pale Headed Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
-        'paleheaded_seagreen_olive'=>['ja'=>'ペールヘッドシーグリーンオリーブ','en'=>'Pale Headed Seagreen Olive','albs'=>'Pale Headed Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
+        'paleheaded_green'=>['ja'=>'ペールヘッドグリーン','en'=>'Pale Headed Green','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
+        'paleheaded_darkgreen'=>['ja'=>'ペールヘッドダークグリーン','en'=>'Pale Headed Dark Green','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'Dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
+        'paleheaded_olive'=>['ja'=>'ペールヘッドオリーブ','en'=>'Pale Headed Olive','albs'=>null,'genotype'=>['parblue'=>'++','dark'=>'DD','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
+        'paleheaded_aqua'=>['ja'=>'ペールヘッドアクア','en'=>'Pale Headed Aqua','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
+        'paleheaded_aqua_dark'=>['ja'=>'ペールヘッドアクアダーク','en'=>'Pale Headed Aqua Dark','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'Dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
+        'paleheaded_aqua_olive'=>['ja'=>'ペールヘッドアクアオリーブ','en'=>'Pale Headed Aqua Olive','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'DD','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
+        'paleheaded_turquoise'=>['ja'=>'ペールヘッドターコイズ','en'=>'Pale Headed Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
+        'paleheaded_turquoise_dark'=>['ja'=>'ペールヘッドターコイズダーク','en'=>'Pale Headed Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
+        'paleheaded_turquoise_olive'=>['ja'=>'ペールヘッドターコイズオリーブ','en'=>'Pale Headed Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
+        'paleheaded_seagreen'=>['ja'=>'ペールヘッドシーグリーン','en'=>'Pale Headed Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
+        'paleheaded_seagreen_dark'=>['ja'=>'ペールヘッドシーグリーンダーク','en'=>'Pale Headed Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
+        'paleheaded_seagreen_olive'=>['ja'=>'ペールヘッドシーグリーンオリーブ','en'=>'Pale Headed Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','pale_headed'=>'phph'],'eye'=>'black','category'=>'pale_headed'],
             // ============================================================
         // TIER 2: Opaline + INO（4色）#157-160
         // ============================================================
         'opaline_lutino'=>['ja'=>'オパーリンルチノー','en'=>'Opaline Lutino','albs'=>'Opaline Lutino','genotype'=>['parblue'=>'++','opaline'=>'opop','ino'=>'inoino'],'eye'=>'red','category'=>'tier2_opaline_ino','tier'=>2],
-        'opaline_creamino'=>['ja'=>'オパーリンクリーミノ','en'=>'Opaline Creamino','albs'=>'Opaline Creamino Par-Blue','genotype'=>['parblue'=>'aqaq','opaline'=>'opop','ino'=>'inoino'],'eye'=>'red','category'=>'tier2_opaline_ino','tier'=>2],
-        'opaline_creamino_seagreen'=>['ja'=>'オパーリンクリーミノシーグリーン','en'=>'Opaline Creamino Seagreen','albs'=>'Opaline Seagreen Creamino','genotype'=>['parblue'=>'tqaq','opaline'=>'opop','ino'=>'inoino'],'eye'=>'red','category'=>'tier2_opaline_ino','tier'=>2],
-        'opaline_pure_white'=>['ja'=>'オパーリンピュアホワイト','en'=>'Opaline Pure White','albs'=>'Opaline Whitefaced Creamino','genotype'=>['parblue'=>'tqtq','opaline'=>'opop','ino'=>'inoino'],'eye'=>'red','category'=>'tier2_opaline_ino','tier'=>2],
+        'opaline_creamino'=>['ja'=>'オパーリンクリーミノ','en'=>'Opaline Creamino','albs'=>'Opaline Creamino','genotype'=>['parblue'=>'aqaq','opaline'=>'opop','ino'=>'inoino'],'eye'=>'red','category'=>'tier2_opaline_ino','tier'=>2],
+        'opaline_creamino_seagreen'=>['ja'=>'オパーリンクリーミノシーグリーン','en'=>'Opaline Creamino Seagreen','albs'=>'Opaline Seagreen Par-Blue Creamino','genotype'=>['parblue'=>'tqaq','opaline'=>'opop','ino'=>'inoino'],'eye'=>'red','category'=>'tier2_opaline_ino','tier'=>2],
+        'opaline_pure_white'=>['ja'=>'オパーリンピュアホワイト','en'=>'Opaline Pure White','albs'=>'Opaline Whitefaced Par-Blue Creamino','genotype'=>['parblue'=>'tqtq','opaline'=>'opop','ino'=>'inoino'],'eye'=>'red','category'=>'tier2_opaline_ino','tier'=>2],
         // ============================================================
         // TIER 2: Opaline + Cinnamon（12色）#161-172
         // ============================================================
@@ -878,12 +1141,12 @@ final class AgapornisLoci
         'opaline_cinnamon_aqua'=>['ja'=>'オパーリンシナモンアクア','en'=>'Opaline Cinnamon Aqua','albs'=>'Opaline American Cinnamon Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
         'opaline_cinnamon_aqua_dark'=>['ja'=>'オパーリンシナモンアクアダーク','en'=>'Opaline Cinnamon Aqua Dark','albs'=>'Opaline American Cinnamon Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
         'opaline_cinnamon_aqua_olive'=>['ja'=>'オパーリンシナモンアクアオリーブ','en'=>'Opaline Cinnamon Aqua Olive','albs'=>'Opaline American Cinnamon Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
-        'opaline_cinnamon_turquoise'=>['ja'=>'オパーリンシナモンターコイズ','en'=>'Opaline Cinnamon Turquoise','albs'=>'Opaline American Cinnamon Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
-        'opaline_cinnamon_turquoise_dark'=>['ja'=>'オパーリンシナモンターコイズダーク','en'=>'Opaline Cinnamon Turquoise Dark','albs'=>'Opaline American Cinnamon Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
-        'opaline_cinnamon_turquoise_olive'=>['ja'=>'オパーリンシナモンターコイズオリーブ','en'=>'Opaline Cinnamon Turquoise Olive','albs'=>'Opaline American Cinnamon Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
-        'opaline_cinnamon_seagreen'=>['ja'=>'オパーリンシナモンシーグリーン','en'=>'Opaline Cinnamon Seagreen','albs'=>'Opaline American Cinnamon Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
-        'opaline_cinnamon_seagreen_dark'=>['ja'=>'オパーリンシナモンシーグリーンダーク','en'=>'Opaline Cinnamon Seagreen Dark','albs'=>'Opaline American Cinnamon Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
-        'opaline_cinnamon_seagreen_olive'=>['ja'=>'オパーリンシナモンシーグリーンオリーブ','en'=>'Opaline Cinnamon Seagreen Olive','albs'=>'Opaline American Cinnamon Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
+        'opaline_cinnamon_turquoise'=>['ja'=>'オパーリンシナモンターコイズ','en'=>'Opaline Cinnamon Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
+        'opaline_cinnamon_turquoise_dark'=>['ja'=>'オパーリンシナモンターコイズダーク','en'=>'Opaline Cinnamon Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
+        'opaline_cinnamon_turquoise_olive'=>['ja'=>'オパーリンシナモンターコイズオリーブ','en'=>'Opaline Cinnamon Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
+        'opaline_cinnamon_seagreen'=>['ja'=>'オパーリンシナモンシーグリーン','en'=>'Opaline Cinnamon Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
+        'opaline_cinnamon_seagreen_dark'=>['ja'=>'オパーリンシナモンシーグリーンダーク','en'=>'Opaline Cinnamon Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
+        'opaline_cinnamon_seagreen_olive'=>['ja'=>'オパーリンシナモンシーグリーンオリーブ','en'=>'Opaline Cinnamon Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','opaline'=>'opop','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_opaline_cinnamon','tier'=>2],
         // ============================================================
         // TIER 2: Opaline + Pallid（12色）#173-184
         // ============================================================
@@ -893,24 +1156,24 @@ final class AgapornisLoci
         'opaline_pallid_aqua'=>['ja'=>'オパーリンパリッドアクア','en'=>'Opaline Pallid Aqua','albs'=>'Opaline Australian Cinnamon Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
         'opaline_pallid_aqua_dark'=>['ja'=>'オパーリンパリッドアクアダーク','en'=>'Opaline Pallid Aqua Dark','albs'=>'Opaline Australian Cinnamon Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
         'opaline_pallid_aqua_olive'=>['ja'=>'オパーリンパリッドアクアオリーブ','en'=>'Opaline Pallid Aqua Olive','albs'=>'Opaline Australian Cinnamon Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
-        'opaline_pallid_turquoise'=>['ja'=>'オパーリンパリッドターコイズ','en'=>'Opaline Pallid Turquoise','albs'=>'Opaline Australian Cinnamon Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
-        'opaline_pallid_turquoise_dark'=>['ja'=>'オパーリンパリッドターコイズダーク','en'=>'Opaline Pallid Turquoise Dark','albs'=>'Opaline Australian Cinnamon Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
-        'opaline_pallid_turquoise_olive'=>['ja'=>'オパーリンパリッドターコイズオリーブ','en'=>'Opaline Pallid Turquoise Olive','albs'=>'Opaline Australian Cinnamon Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
-        'opaline_pallid_seagreen'=>['ja'=>'オパーリンパリッドシーグリーン','en'=>'Opaline Pallid Seagreen','albs'=>'Opaline Australian Cinnamon Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
-        'opaline_pallid_seagreen_dark'=>['ja'=>'オパーリンパリッドシーグリーンダーク','en'=>'Opaline Pallid Seagreen Dark','albs'=>'Opaline Australian Cinnamon Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
-        'opaline_pallid_seagreen_olive'=>['ja'=>'オパーリンパリッドシーグリーンオリーブ','en'=>'Opaline Pallid Seagreen Olive','albs'=>'Opaline Australian Cinnamon Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
+        'opaline_pallid_turquoise'=>['ja'=>'オパーリンパリッドターコイズ','en'=>'Opaline Pallid Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
+        'opaline_pallid_turquoise_dark'=>['ja'=>'オパーリンパリッドターコイズダーク','en'=>'Opaline Pallid Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
+        'opaline_pallid_turquoise_olive'=>['ja'=>'オパーリンパリッドターコイズオリーブ','en'=>'Opaline Pallid Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
+        'opaline_pallid_seagreen'=>['ja'=>'オパーリンパリッドシーグリーン','en'=>'Opaline Pallid Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
+        'opaline_pallid_seagreen_dark'=>['ja'=>'オパーリンパリッドシーグリーンダーク','en'=>'Opaline Pallid Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
+        'opaline_pallid_seagreen_olive'=>['ja'=>'オパーリンパリッドシーグリーンオリーブ','en'=>'Opaline Pallid Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','opaline'=>'opop','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_opaline_pallid','tier'=>2],
         // ============================================================
         // TIER 2: Opaline + Violet（8色）#185-192
         // ============================================================
         'opaline_violet_aqua'=>['ja'=>'オパーリンバイオレットアクア','en'=>'Opaline Violet Aqua','albs'=>'Opaline Violet Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
         'opaline_violet_aqua_dark'=>['ja'=>'オパーリンバイオレットアクアダーク','en'=>'Opaline Violet Aqua Dark','albs'=>'Opaline Violet Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
         'opaline_violet_aqua_olive'=>['ja'=>'オパーリンバイオレットアクアオリーブ','en'=>'Opaline Violet Aqua Olive','albs'=>'Opaline Violet Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
-        'opaline_violet_turquoise'=>['ja'=>'オパーリンバイオレットターコイズ','en'=>'Opaline Violet Turquoise','albs'=>'Opaline Violet Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
-        'opaline_violet_turquoise_dark'=>['ja'=>'オパーリンバイオレットターコイズダーク','en'=>'Opaline Violet Turquoise Dark','albs'=>'Opaline Violet Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
-        'opaline_violet_turquoise_olive'=>['ja'=>'オパーリンバイオレットターコイズオリーブ','en'=>'Opaline Violet Turquoise Olive','albs'=>'Opaline Violet Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
-        'opaline_violet_seagreen'=>['ja'=>'オパーリンバイオレットシーグリーン','en'=>'Opaline Violet Seagreen','albs'=>'Opaline Violet Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
-        'opaline_violet_seagreen_dark'=>['ja'=>'オパーリンバイオレットシーグリーンダーク','en'=>'Opaline Violet Seagreen Dark','albs'=>'Opaline Violet Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
-        'opaline_violet_seagreen_olive'=>['ja'=>'オパーリンバイオレットシーグリーンオリーブ','en'=>'Opaline Violet Seagreen Olive','albs'=>'Opaline Violet Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
+        'opaline_violet_turquoise'=>['ja'=>'オパーリンバイオレットターコイズ','en'=>'Opaline Violet Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
+        'opaline_violet_turquoise_dark'=>['ja'=>'オパーリンバイオレットターコイズダーク','en'=>'Opaline Violet Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
+        'opaline_violet_turquoise_olive'=>['ja'=>'オパーリンバイオレットターコイズオリーブ','en'=>'Opaline Violet Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
+        'opaline_violet_seagreen'=>['ja'=>'オパーリンバイオレットシーグリーン','en'=>'Opaline Violet Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
+        'opaline_violet_seagreen_dark'=>['ja'=>'オパーリンバイオレットシーグリーンダーク','en'=>'Opaline Violet Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
+        'opaline_violet_seagreen_olive'=>['ja'=>'オパーリンバイオレットシーグリーンオリーブ','en'=>'Opaline Violet Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','opaline'=>'opop','violet'=>'Vv'],'eye'=>'black','category'=>'tier2_opaline_violet','tier'=>2],
 
         // ============================================================
         // TIER 2: Opaline + Pied Dom（12色）#193-204
@@ -936,9 +1199,9 @@ final class AgapornisLoci
         'opaline_yellowfaced_aqua'=>['ja'=>'オパーリンイエローフェイスアクア','en'=>'Opaline Yellowfaced Aqua','albs'=>'Opaline Yellowfaced Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','opaline'=>'opop','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_opaline_orangeface','tier'=>2],
         'opaline_yellowfaced_aqua_dark'=>['ja'=>'オパーリンイエローフェイスアクアダーク','en'=>'Opaline Yellowfaced Aqua Dark','albs'=>'Opaline Yellowfaced Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','opaline'=>'opop','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_opaline_orangeface','tier'=>2],
         'opaline_yellowfaced_aqua_olive'=>['ja'=>'オパーリンイエローフェイスアクアオリーブ','en'=>'Opaline Yellowfaced Aqua Olive','albs'=>'Opaline Yellowfaced Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','opaline'=>'opop','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_opaline_orangeface','tier'=>2],
-        'opaline_yellowfaced_turquoise'=>['ja'=>'オパーリンイエローフェイスターコイズ','en'=>'Opaline Yellowfaced Turquoise','albs'=>'Opaline Yellowfaced Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','opaline'=>'opop','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_opaline_orangeface','tier'=>2],
-        'opaline_yellowfaced_turquoise_dark'=>['ja'=>'オパーリンイエローフェイスターコイズダーク','en'=>'Opaline Yellowfaced Turquoise Dark','albs'=>'Opaline Yellowfaced Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','opaline'=>'opop','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_opaline_orangeface','tier'=>2],
-        'opaline_yellowfaced_turquoise_olive'=>['ja'=>'オパーリンイエローフェイスターコイズオリーブ','en'=>'Opaline Yellowfaced Turquoise Olive','albs'=>'Opaline Yellowfaced Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','opaline'=>'opop','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_opaline_orangeface','tier'=>2],
+        'opaline_yellowfaced_turquoise'=>['ja'=>'オパーリンイエローフェイスターコイズ','en'=>'Opaline Yellowfaced Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','opaline'=>'opop','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_opaline_orangeface','tier'=>2],
+        'opaline_yellowfaced_turquoise_dark'=>['ja'=>'オパーリンイエローフェイスターコイズダーク','en'=>'Opaline Yellowfaced Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','opaline'=>'opop','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_opaline_orangeface','tier'=>2],
+        'opaline_yellowfaced_turquoise_olive'=>['ja'=>'オパーリンイエローフェイスターコイズオリーブ','en'=>'Opaline Yellowfaced Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','opaline'=>'opop','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_opaline_orangeface','tier'=>2],
         'opaline_yellowfaced_seagreen'=>['ja'=>'オパーリンイエローフェイスシーグリーン','en'=>'Opaline Yellowfaced Seagreen','albs'=>'Opaline Yellowfaced Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','opaline'=>'opop','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_opaline_orangeface','tier'=>2],
         'opaline_yellowfaced_seagreen_dark'=>['ja'=>'オパーリンイエローフェイスシーグリーンダーク','en'=>'Opaline Yellowfaced Seagreen Dark','albs'=>'Opaline Yellowfaced Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','opaline'=>'opop','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_opaline_orangeface','tier'=>2],
         'opaline_yellowfaced_seagreen_olive'=>['ja'=>'オパーリンイエローフェイスシーグリーンオリーブ','en'=>'Opaline Yellowfaced Seagreen Olive','albs'=>'Opaline Yellowfaced Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','opaline'=>'opop','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_opaline_orangeface','tier'=>2],
@@ -954,20 +1217,20 @@ final class AgapornisLoci
         'opaline_edged_turquoise'=>['ja'=>'オパーリンエッジドターコイズ','en'=>'Opaline Edged Turquoise','albs'=>'Opaline Edged Dilute Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','opaline'=>'opop','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_opaline_edged','tier'=>2],
         'opaline_edged_turquoise_dark'=>['ja'=>'オパーリンエッジドターコイズダーク','en'=>'Opaline Edged Turquoise Dark','albs'=>'Opaline Edged Dilute Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','opaline'=>'opop','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_opaline_edged','tier'=>2],
         'opaline_edged_turquoise_olive'=>['ja'=>'オパーリンエッジドターコイズオリーブ','en'=>'Opaline Edged Turquoise Olive','albs'=>'Opaline Edged Dilute Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','opaline'=>'opop','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_opaline_edged','tier'=>2],
-        'opaline_edged_seagreen'=>['ja'=>'オパーリンエッジドシーグリーン','en'=>'Opaline Edged Seagreen','albs'=>'Opaline Edged Dilute Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','opaline'=>'opop','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_opaline_edged','tier'=>2],
-        'opaline_edged_seagreen_dark'=>['ja'=>'オパーリンエッジドシーグリーンダーク','en'=>'Opaline Edged Seagreen Dark','albs'=>'Opaline Edged Dilute Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','opaline'=>'opop','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_opaline_edged','tier'=>2],
-        'opaline_edged_seagreen_olive'=>['ja'=>'オパーリンエッジドシーグリーンオリーブ','en'=>'Opaline Edged Seagreen Olive','albs'=>'Opaline Edged Dilute Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','opaline'=>'opop','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_opaline_edged','tier'=>2],
+        'opaline_edged_seagreen'=>['ja'=>'オパーリンエッジドシーグリーン','en'=>'Opaline Edged Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','opaline'=>'opop','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_opaline_edged','tier'=>2],
+        'opaline_edged_seagreen_dark'=>['ja'=>'オパーリンエッジドシーグリーンダーク','en'=>'Opaline Edged Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','opaline'=>'opop','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_opaline_edged','tier'=>2],
+        'opaline_edged_seagreen_olive'=>['ja'=>'オパーリンエッジドシーグリーンオリーブ','en'=>'Opaline Edged Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','opaline'=>'opop','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_opaline_edged','tier'=>2],
         // ============================================================
         // TIER 2: Violet + Pied Dom（8色）#229-236
         // ============================================================
         'violet_pied_dom_aqua'=>['ja'=>'バイオレットドミナントパイドアクア','en'=>'Violet Dominant Pied Aqua','albs'=>'Violet Pied Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','violet'=>'Vv','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'tier2_violet_pied_dom','tier'=>2],
         'violet_pied_dom_aqua_dark'=>['ja'=>'バイオレットドミナントパイドアクアダーク','en'=>'Violet Dominant Pied Aqua Dark','albs'=>'Violet Pied Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','violet'=>'Vv','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'tier2_violet_pied_dom','tier'=>2],
         'violet_pied_dom_aqua_olive'=>['ja'=>'バイオレットドミナントパイドアクアオリーブ','en'=>'Violet Dominant Pied Aqua Olive','albs'=>'Violet Pied Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','violet'=>'Vv','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'tier2_violet_pied_dom','tier'=>2],
-        'violet_pied_dom_turquoise'=>['ja'=>'バイオレットドミナントパイドターコイズ','en'=>'Violet Dominant Pied Turquoise','albs'=>'Violet Pied Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','violet'=>'Vv','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'tier2_violet_pied_dom','tier'=>2],
-        'violet_pied_dom_turquoise_dark'=>['ja'=>'バイオレットドミナントパイドターコイズダーク','en'=>'Violet Dominant Pied Turquoise Dark','albs'=>'Violet Pied Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','violet'=>'Vv','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'tier2_violet_pied_dom','tier'=>2],
-        'violet_pied_dom_turquoise_olive'=>['ja'=>'バイオレットドミナントパイドターコイズオリーブ','en'=>'Violet Dominant Pied Turquoise Olive','albs'=>'Violet Pied Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','violet'=>'Vv','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'tier2_violet_pied_dom','tier'=>2],
-        'violet_pied_dom_seagreen'=>['ja'=>'バイオレットドミナントパイドシーグリーン','en'=>'Violet Dominant Pied Seagreen','albs'=>'Violet Pied Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','violet'=>'Vv','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'tier2_violet_pied_dom','tier'=>2],
-        'violet_pied_dom_seagreen_dark'=>['ja'=>'バイオレットドミナントパイドシーグリーンダーク','en'=>'Violet Dominant Pied Seagreen Dark','albs'=>'Violet Pied Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','violet'=>'Vv','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'tier2_violet_pied_dom','tier'=>2],
+        'violet_pied_dom_turquoise'=>['ja'=>'バイオレットドミナントパイドターコイズ','en'=>'Violet Dominant Pied Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','violet'=>'Vv','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'tier2_violet_pied_dom','tier'=>2],
+        'violet_pied_dom_turquoise_dark'=>['ja'=>'バイオレットドミナントパイドターコイズダーク','en'=>'Violet Dominant Pied Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','violet'=>'Vv','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'tier2_violet_pied_dom','tier'=>2],
+        'violet_pied_dom_turquoise_olive'=>['ja'=>'バイオレットドミナントパイドターコイズオリーブ','en'=>'Violet Dominant Pied Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','violet'=>'Vv','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'tier2_violet_pied_dom','tier'=>2],
+        'violet_pied_dom_seagreen'=>['ja'=>'バイオレットドミナントパイドシーグリーン','en'=>'Violet Dominant Pied Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','violet'=>'Vv','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'tier2_violet_pied_dom','tier'=>2],
+        'violet_pied_dom_seagreen_dark'=>['ja'=>'バイオレットドミナントパイドシーグリーンダーク','en'=>'Violet Dominant Pied Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','violet'=>'Vv','pied_dom'=>'Pi+'],'eye'=>'black','category'=>'tier2_violet_pied_dom','tier'=>2],
         // ============================================================
         // TIER 2: Violet + Edged（8色）#237-244
         // ============================================================
@@ -988,12 +1251,12 @@ final class AgapornisLoci
         'pied_dom_cinnamon_aqua'=>['ja'=>'ドミナントパイドシナモンアクア','en'=>'Dominant Pied Cinnamon Aqua','albs'=>'Pied American Cinnamon Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
         'pied_dom_cinnamon_aqua_dark'=>['ja'=>'ドミナントパイドシナモンアクアダーク','en'=>'Dominant Pied Cinnamon Aqua Dark','albs'=>'Pied American Cinnamon Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
         'pied_dom_cinnamon_aqua_olive'=>['ja'=>'ドミナントパイドシナモンアクアオリーブ','en'=>'Dominant Pied Cinnamon Aqua Olive','albs'=>'Pied American Cinnamon Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
-        'pied_dom_cinnamon_turquoise'=>['ja'=>'ドミナントパイドシナモンターコイズ','en'=>'Dominant Pied Cinnamon Turquoise','albs'=>'Pied American Cinnamon Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
-        'pied_dom_cinnamon_turquoise_dark'=>['ja'=>'ドミナントパイドシナモンターコイズダーク','en'=>'Dominant Pied Cinnamon Turquoise Dark','albs'=>'Pied American Cinnamon Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
-        'pied_dom_cinnamon_turquoise_olive'=>['ja'=>'ドミナントパイドシナモンターコイズオリーブ','en'=>'Dominant Pied Cinnamon Turquoise Olive','albs'=>'Pied American Cinnamon Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
-        'pied_dom_cinnamon_seagreen'=>['ja'=>'ドミナントパイドシナモンシーグリーン','en'=>'Dominant Pied Cinnamon Seagreen','albs'=>'Pied American Cinnamon Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
-        'pied_dom_cinnamon_seagreen_dark'=>['ja'=>'ドミナントパイドシナモンシーグリーンダーク','en'=>'Dominant Pied Cinnamon Seagreen Dark','albs'=>'Pied American Cinnamon Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
-        'pied_dom_cinnamon_seagreen_olive'=>['ja'=>'ドミナントパイドシナモンシーグリーンオリーブ','en'=>'Dominant Pied Cinnamon Seagreen Olive','albs'=>'Pied American Cinnamon Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
+        'pied_dom_cinnamon_turquoise'=>['ja'=>'ドミナントパイドシナモンターコイズ','en'=>'Dominant Pied Cinnamon Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
+        'pied_dom_cinnamon_turquoise_dark'=>['ja'=>'ドミナントパイドシナモンターコイズダーク','en'=>'Dominant Pied Cinnamon Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
+        'pied_dom_cinnamon_turquoise_olive'=>['ja'=>'ドミナントパイドシナモンターコイズオリーブ','en'=>'Dominant Pied Cinnamon Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
+        'pied_dom_cinnamon_seagreen'=>['ja'=>'ドミナントパイドシナモンシーグリーン','en'=>'Dominant Pied Cinnamon Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
+        'pied_dom_cinnamon_seagreen_dark'=>['ja'=>'ドミナントパイドシナモンシーグリーンダーク','en'=>'Dominant Pied Cinnamon Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
+        'pied_dom_cinnamon_seagreen_olive'=>['ja'=>'ドミナントパイドシナモンシーグリーンオリーブ','en'=>'Dominant Pied Cinnamon Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','pied_dom'=>'Pi+','cinnamon'=>'cincin'],'eye'=>'black','category'=>'tier2_pied_dom_cinnamon','tier'=>2],
         // ============================================================
         // TIER 2: Pied Dom + Pallid（12色）#257-268
         // ============================================================
@@ -1003,12 +1266,12 @@ final class AgapornisLoci
         'pied_dom_pallid_aqua'=>['ja'=>'ドミナントパイドパリッドアクア','en'=>'Dominant Pied Pallid Aqua','albs'=>'Pied Australian Cinnamon Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
         'pied_dom_pallid_aqua_dark'=>['ja'=>'ドミナントパイドパリッドアクアダーク','en'=>'Dominant Pied Pallid Aqua Dark','albs'=>'Pied Australian Cinnamon Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
         'pied_dom_pallid_aqua_olive'=>['ja'=>'ドミナントパイドパリッドアクアオリーブ','en'=>'Dominant Pied Pallid Aqua Olive','albs'=>'Pied Australian Cinnamon Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
-        'pied_dom_pallid_turquoise'=>['ja'=>'ドミナントパイドパリッドターコイズ','en'=>'Dominant Pied Pallid Turquoise','albs'=>'Pied Australian Cinnamon Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
-        'pied_dom_pallid_turquoise_dark'=>['ja'=>'ドミナントパイドパリッドターコイズダーク','en'=>'Dominant Pied Pallid Turquoise Dark','albs'=>'Pied Australian Cinnamon Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
-        'pied_dom_pallid_turquoise_olive'=>['ja'=>'ドミナントパイドパリッドターコイズオリーブ','en'=>'Dominant Pied Pallid Turquoise Olive','albs'=>'Pied Australian Cinnamon Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
-        'pied_dom_pallid_seagreen'=>['ja'=>'ドミナントパイドパリッドシーグリーン','en'=>'Dominant Pied Pallid Seagreen','albs'=>'Pied Australian Cinnamon Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
-        'pied_dom_pallid_seagreen_dark'=>['ja'=>'ドミナントパイドパリッドシーグリーンダーク','en'=>'Dominant Pied Pallid Seagreen Dark','albs'=>'Pied Australian Cinnamon Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
-        'pied_dom_pallid_seagreen_olive'=>['ja'=>'ドミナントパイドパリッドシーグリーンオリーブ','en'=>'Dominant Pied Pallid Seagreen Olive','albs'=>'Pied Australian Cinnamon Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
+        'pied_dom_pallid_turquoise'=>['ja'=>'ドミナントパイドパリッドターコイズ','en'=>'Dominant Pied Pallid Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
+        'pied_dom_pallid_turquoise_dark'=>['ja'=>'ドミナントパイドパリッドターコイズダーク','en'=>'Dominant Pied Pallid Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
+        'pied_dom_pallid_turquoise_olive'=>['ja'=>'ドミナントパイドパリッドターコイズオリーブ','en'=>'Dominant Pied Pallid Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
+        'pied_dom_pallid_seagreen'=>['ja'=>'ドミナントパイドパリッドシーグリーン','en'=>'Dominant Pied Pallid Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
+        'pied_dom_pallid_seagreen_dark'=>['ja'=>'ドミナントパイドパリッドシーグリーンダーク','en'=>'Dominant Pied Pallid Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
+        'pied_dom_pallid_seagreen_olive'=>['ja'=>'ドミナントパイドパリッドシーグリーンオリーブ','en'=>'Dominant Pied Pallid Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','pied_dom'=>'Pi+','ino'=>'pldpld'],'eye'=>'black','category'=>'tier2_pied_dom_pallid','tier'=>2],
         // ============================================================
         // TIER 2: Pied Dom + Orangefaced（12色）#269-280
         // ============================================================
@@ -1018,12 +1281,12 @@ final class AgapornisLoci
         'pied_dom_yellowfaced_aqua'=>['ja'=>'ドミナントパイドイエローフェイスアクア','en'=>'Dominant Pied Yellowfaced Aqua','albs'=>'Pied Yellowfaced Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
         'pied_dom_yellowfaced_aqua_dark'=>['ja'=>'ドミナントパイドイエローフェイスアクアダーク','en'=>'Dominant Pied Yellowfaced Aqua Dark','albs'=>'Pied Yellowfaced Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
         'pied_dom_yellowfaced_aqua_olive'=>['ja'=>'ドミナントパイドイエローフェイスアクアオリーブ','en'=>'Dominant Pied Yellowfaced Aqua Olive','albs'=>'Pied Yellowfaced Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
-        'pied_dom_yellowfaced_turquoise'=>['ja'=>'ドミナントパイドイエローフェイスターコイズ','en'=>'Dominant Pied Yellowfaced Turquoise','albs'=>'Pied Yellowfaced Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
-        'pied_dom_yellowfaced_turquoise_dark'=>['ja'=>'ドミナントパイドイエローフェイスターコイズダーク','en'=>'Dominant Pied Yellowfaced Turquoise Dark','albs'=>'Pied Yellowfaced Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
-        'pied_dom_yellowfaced_turquoise_olive'=>['ja'=>'ドミナントパイドイエローフェイスターコイズオリーブ','en'=>'Dominant Pied Yellowfaced Turquoise Olive','albs'=>'Pied Yellowfaced Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
-        'pied_dom_yellowfaced_seagreen'=>['ja'=>'ドミナントパイドイエローフェイスシーグリーン','en'=>'Dominant Pied Yellowfaced Seagreen','albs'=>'Pied Yellowfaced Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
-        'pied_dom_yellowfaced_seagreen_dark'=>['ja'=>'ドミナントパイドイエローフェイスシーグリーンダーク','en'=>'Dominant Pied Yellowfaced Seagreen Dark','albs'=>'Pied Yellowfaced Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
-        'pied_dom_yellowfaced_seagreen_olive'=>['ja'=>'ドミナントパイドイエローフェイスシーグリーンオリーブ','en'=>'Dominant Pied Yellowfaced Seagreen Olive','albs'=>'Pied Yellowfaced Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
+        'pied_dom_yellowfaced_turquoise'=>['ja'=>'ドミナントパイドイエローフェイスターコイズ','en'=>'Dominant Pied Yellowfaced Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
+        'pied_dom_yellowfaced_turquoise_dark'=>['ja'=>'ドミナントパイドイエローフェイスターコイズダーク','en'=>'Dominant Pied Yellowfaced Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
+        'pied_dom_yellowfaced_turquoise_olive'=>['ja'=>'ドミナントパイドイエローフェイスターコイズオリーブ','en'=>'Dominant Pied Yellowfaced Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
+        'pied_dom_yellowfaced_seagreen'=>['ja'=>'ドミナントパイドイエローフェイスシーグリーン','en'=>'Dominant Pied Yellowfaced Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
+        'pied_dom_yellowfaced_seagreen_dark'=>['ja'=>'ドミナントパイドイエローフェイスシーグリーンダーク','en'=>'Dominant Pied Yellowfaced Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
+        'pied_dom_yellowfaced_seagreen_olive'=>['ja'=>'ドミナントパイドイエローフェイスシーグリーンオリーブ','en'=>'Dominant Pied Yellowfaced Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','pied_dom'=>'Pi+','orangeface'=>'ofof'],'eye'=>'black','category'=>'tier2_pied_dom_orangeface','tier'=>2],
         // ============================================================
         // TIER 2: Pied Dom + Edged（12色）#281-292
         // ============================================================
@@ -1033,34 +1296,34 @@ final class AgapornisLoci
         'pied_dom_edged_aqua'=>['ja'=>'ドミナントパイドエッジドアクア','en'=>'Dominant Pied Edged Aqua','albs'=>'Pied Edged Dilute Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
         'pied_dom_edged_aqua_dark'=>['ja'=>'ドミナントパイドエッジドアクアダーク','en'=>'Dominant Pied Edged Aqua Dark','albs'=>'Pied Edged Dilute Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
         'pied_dom_edged_aqua_olive'=>['ja'=>'ドミナントパイドエッジドアクアオリーブ','en'=>'Dominant Pied Edged Aqua Olive','albs'=>'Pied Edged Dilute Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
-        'pied_dom_edged_turquoise'=>['ja'=>'ドミナントパイドエッジドターコイズ','en'=>'Dominant Pied Edged Turquoise','albs'=>'Pied Edged Dilute Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
-        'pied_dom_edged_turquoise_dark'=>['ja'=>'ドミナントパイドエッジドターコイズダーク','en'=>'Dominant Pied Edged Turquoise Dark','albs'=>'Pied Edged Dilute Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
-        'pied_dom_edged_turquoise_olive'=>['ja'=>'ドミナントパイドエッジドターコイズオリーブ','en'=>'Dominant Pied Edged Turquoise Olive','albs'=>'Pied Edged Dilute Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
-        'pied_dom_edged_seagreen'=>['ja'=>'ドミナントパイドエッジドシーグリーン','en'=>'Dominant Pied Edged Seagreen','albs'=>'Pied Edged Dilute Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
-        'pied_dom_edged_seagreen_dark'=>['ja'=>'ドミナントパイドエッジドシーグリーンダーク','en'=>'Dominant Pied Edged Seagreen Dark','albs'=>'Pied Edged Dilute Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
-        'pied_dom_edged_seagreen_olive'=>['ja'=>'ドミナントパイドエッジドシーグリーンオリーブ','en'=>'Dominant Pied Edged Seagreen Olive','albs'=>'Pied Edged Dilute Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
+        'pied_dom_edged_turquoise'=>['ja'=>'ドミナントパイドエッジドターコイズ','en'=>'Dominant Pied Edged Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
+        'pied_dom_edged_turquoise_dark'=>['ja'=>'ドミナントパイドエッジドターコイズダーク','en'=>'Dominant Pied Edged Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
+        'pied_dom_edged_turquoise_olive'=>['ja'=>'ドミナントパイドエッジドターコイズオリーブ','en'=>'Dominant Pied Edged Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
+        'pied_dom_edged_seagreen'=>['ja'=>'ドミナントパイドエッジドシーグリーン','en'=>'Dominant Pied Edged Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
+        'pied_dom_edged_seagreen_dark'=>['ja'=>'ドミナントパイドエッジドシーグリーンダーク','en'=>'Dominant Pied Edged Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
+        'pied_dom_edged_seagreen_olive'=>['ja'=>'ドミナントパイドエッジドシーグリーンオリーブ','en'=>'Dominant Pied Edged Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','pied_dom'=>'Pi+','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_pied_dom_edged','tier'=>2],
         // ============================================================
         // TIER 2: Orangefaced + INO（4色）#293-296
         // ============================================================
         'orangefaced_lutino'=>['ja'=>'オレンジフェイスルチノー','en'=>'Orangefaced Lutino','albs'=>'Orangefaced Lutino','genotype'=>['parblue'=>'++','orangeface'=>'ofof','ino'=>'inoino'],'eye'=>'red','category'=>'tier2_orangeface_ino','tier'=>2],
-        'yellowfaced_creamino'=>['ja'=>'イエローフェイスクリーミノ','en'=>'Yellowfaced Creamino','albs'=>'Yellowfaced Creamino Par-Blue','genotype'=>['parblue'=>'aqaq','orangeface'=>'ofof','ino'=>'inoino'],'eye'=>'red','category'=>'tier2_orangeface_ino','tier'=>2],
-        'yellowfaced_creamino_seagreen'=>['ja'=>'イエローフェイスクリーミノシーグリーン','en'=>'Yellowfaced Creamino Seagreen','albs'=>'Yellowfaced Seagreen Creamino','genotype'=>['parblue'=>'tqaq','orangeface'=>'ofof','ino'=>'inoino'],'eye'=>'red','category'=>'tier2_orangeface_ino','tier'=>2],
-        'yellowfaced_pure_white'=>['ja'=>'イエローフェイスピュアホワイト','en'=>'Yellowfaced Pure White','albs'=>'Yellowfaced Whitefaced Creamino','genotype'=>['parblue'=>'tqtq','orangeface'=>'ofof','ino'=>'inoino'],'eye'=>'red','category'=>'tier2_orangeface_ino','tier'=>2],
+        'yellowfaced_creamino'=>['ja'=>'イエローフェイスクリーミノ','en'=>'Yellowfaced Creamino','albs'=>null,'genotype'=>['parblue'=>'aqaq','orangeface'=>'ofof','ino'=>'inoino'],'eye'=>'red','category'=>'tier2_orangeface_ino','tier'=>2],
+        'yellowfaced_creamino_seagreen'=>['ja'=>'イエローフェイスクリーミノシーグリーン','en'=>'Yellowfaced Creamino Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','orangeface'=>'ofof','ino'=>'inoino'],'eye'=>'red','category'=>'tier2_orangeface_ino','tier'=>2],
+        'yellowfaced_pure_white'=>['ja'=>'イエローフェイスピュアホワイト','en'=>'Yellowfaced Pure White','albs'=>null,'genotype'=>['parblue'=>'tqtq','orangeface'=>'ofof','ino'=>'inoino'],'eye'=>'red','category'=>'tier2_orangeface_ino','tier'=>2],
         // ============================================================
         // TIER 2: Orangefaced + Edged（12色）#297-308
         // ============================================================
         'orangefaced_edged_green'=>['ja'=>'オレンジフェイスエッジドグリーン','en'=>'Orangefaced Edged Green','albs'=>'Orangefaced Edged Dilute Green','genotype'=>['parblue'=>'++','dark'=>'dd','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
         'orangefaced_edged_darkgreen'=>['ja'=>'オレンジフェイスエッジドダークグリーン','en'=>'Orangefaced Edged Dark Green','albs'=>'Orangefaced Edged Dilute Medium Green','genotype'=>['parblue'=>'++','dark'=>'Dd','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
         'orangefaced_edged_olive'=>['ja'=>'オレンジフェイスエッジドオリーブ','en'=>'Orangefaced Edged Olive','albs'=>'Orangefaced Edged Dilute Dark Green','genotype'=>['parblue'=>'++','dark'=>'DD','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
-        'yellowfaced_edged_aqua'=>['ja'=>'イエローフェイスエッジドアクア','en'=>'Yellowfaced Edged Aqua','albs'=>'Yellowfaced Edged Dilute Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'dd','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
-        'yellowfaced_edged_aqua_dark'=>['ja'=>'イエローフェイスエッジドアクアダーク','en'=>'Yellowfaced Edged Aqua Dark','albs'=>'Yellowfaced Edged Dilute Medium Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'Dd','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
-        'yellowfaced_edged_aqua_olive'=>['ja'=>'イエローフェイスエッジドアクアオリーブ','en'=>'Yellowfaced Edged Aqua Olive','albs'=>'Yellowfaced Edged Dilute Dark Par-Blue','genotype'=>['parblue'=>'aqaq','dark'=>'DD','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
-        'yellowfaced_edged_turquoise'=>['ja'=>'イエローフェイスエッジドターコイズ','en'=>'Yellowfaced Edged Turquoise','albs'=>'Yellowfaced Edged Dilute Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'dd','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
-        'yellowfaced_edged_turquoise_dark'=>['ja'=>'イエローフェイスエッジドターコイズダーク','en'=>'Yellowfaced Edged Turquoise Dark','albs'=>'Yellowfaced Edged Dilute Medium Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'Dd','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
-        'yellowfaced_edged_turquoise_olive'=>['ja'=>'イエローフェイスエッジドターコイズオリーブ','en'=>'Yellowfaced Edged Turquoise Olive','albs'=>'Yellowfaced Edged Dilute Dark Whitefaced Par-Blue','genotype'=>['parblue'=>'tqtq','dark'=>'DD','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
-        'yellowfaced_edged_seagreen'=>['ja'=>'イエローフェイスエッジドシーグリーン','en'=>'Yellowfaced Edged Seagreen','albs'=>'Yellowfaced Edged Dilute Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'dd','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
-        'yellowfaced_edged_seagreen_dark'=>['ja'=>'イエローフェイスエッジドシーグリーンダーク','en'=>'Yellowfaced Edged Seagreen Dark','albs'=>'Yellowfaced Edged Dilute Medium Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'Dd','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
-        'yellowfaced_edged_seagreen_olive'=>['ja'=>'イエローフェイスエッジドシーグリーンオリーブ','en'=>'Yellowfaced Edged Seagreen Olive','albs'=>'Yellowfaced Edged Dilute Dark Seagreen Par-Blue','genotype'=>['parblue'=>'tqaq','dark'=>'DD','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
+        'yellowfaced_edged_aqua'=>['ja'=>'イエローフェイスエッジドアクア','en'=>'Yellowfaced Edged Aqua','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'dd','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
+        'yellowfaced_edged_aqua_dark'=>['ja'=>'イエローフェイスエッジドアクアダーク','en'=>'Yellowfaced Edged Aqua Dark','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'Dd','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
+        'yellowfaced_edged_aqua_olive'=>['ja'=>'イエローフェイスエッジドアクアオリーブ','en'=>'Yellowfaced Edged Aqua Olive','albs'=>null,'genotype'=>['parblue'=>'aqaq','dark'=>'DD','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
+        'yellowfaced_edged_turquoise'=>['ja'=>'イエローフェイスエッジドターコイズ','en'=>'Yellowfaced Edged Turquoise','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'dd','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
+        'yellowfaced_edged_turquoise_dark'=>['ja'=>'イエローフェイスエッジドターコイズダーク','en'=>'Yellowfaced Edged Turquoise Dark','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'Dd','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
+        'yellowfaced_edged_turquoise_olive'=>['ja'=>'イエローフェイスエッジドターコイズオリーブ','en'=>'Yellowfaced Edged Turquoise Olive','albs'=>null,'genotype'=>['parblue'=>'tqtq','dark'=>'DD','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
+        'yellowfaced_edged_seagreen'=>['ja'=>'イエローフェイスエッジドシーグリーン','en'=>'Yellowfaced Edged Seagreen','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'dd','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
+        'yellowfaced_edged_seagreen_dark'=>['ja'=>'イエローフェイスエッジドシーグリーンダーク','en'=>'Yellowfaced Edged Seagreen Dark','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'Dd','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
+        'yellowfaced_edged_seagreen_olive'=>['ja'=>'イエローフェイスエッジドシーグリーンオリーブ','en'=>'Yellowfaced Edged Seagreen Olive','albs'=>null,'genotype'=>['parblue'=>'tqaq','dark'=>'DD','orangeface'=>'ofof','edged'=>'EdEd'],'eye'=>'black','category'=>'tier2_orangeface_edged','tier'=>2],
 ]; // COLOR_DEFINITIONS終了
 
     /**
@@ -1357,7 +1620,10 @@ final class AgapornisLoci
         }
         if ($hasIno) {
             $eye = $r['eyeIno'];
-            $base = $r['inoNames'][$parblue] ?? $r['inoDefault'];
+            $cinnamonIno = isset($genotype['cinnamon']) && in_array($g('cinnamon'), $r['cinnamonInoGenotypes'], true);
+            $base = $cinnamonIno
+                ? ($r['cinnamonInoNames'][$parblue] ?? $r['cinnamonInoNames'][$r['wildParblue']])
+                : ($r['inoNames'][$parblue] ?? $r['inoDefault']);
         } else {
             $base = $r['baseNames'][$parblue][$g('dark')] ?? $r['baseDefault'];
         }
