@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Skill や docs に書いた規則のうち、機械で判定できるものを .claude/rule-lint.tsv から読み、ソースを決定的に検査する。
+# 手順の本文を文脈へ入れても、全ファイルの全箇所で守られた保証にはならない。その保証をここで作る。
+# 使い方: scripts/rule-lint            （規則表の glob に一致する全ファイル）
+#         scripts/rule-lint <file>...  （渡したファイルだけ。pre-commit や編集後 hook 用）
+# 規則表の列: id<TAB>kind<TAB>glob<TAB>arg1[<TAB>arg2]
+#   call-has  arg1( … ) の呼び出し1つずつに、文字列 arg2 が含まれること（括弧対応・文字列リテラル尊重）
+#   forbid    正規表現 arg1 に一致する箇所が無いこと（一致1つずつを報告）
+#   require   正規表現 arg1 に一致する箇所が、ファイルに1つ以上あること
+# 意図した例外は、該当行かその直前の1行に「lint-allow:<id>」と理由を書く（効くのはその1箇所だけ）。
+# 判定は「ファイルのどこかに有れば合格」にしない。出現1つずつを見る。違反はすべて NG（警告止まりを作らない）。
+root="$(cd "$(dirname "$0")/.." && pwd)"
+exec python3 -I - "$root" "$@" <<'PY'
+import sys, os, re, glob
+root = sys.argv[1]
+only = {os.path.normpath(os.path.relpath(os.path.abspath(a), root)) for a in sys.argv[2:]}
+os.chdir(root)
+table = '.claude/rule-lint.tsv'
+if not os.path.isfile(table):
+    print('OK   rule-lint: 規則表なし（.claude/rule-lint.tsv）'); sys.exit(0)
+
+def calls(s, name):
+    out = []
+    for m in re.finditer(r'(?<![A-Za-z0-9_])' + re.escape(name) + r'\s*\(', s):
+        j = m.end() - 1; d = 0; q = None; esc = False
+        while j < len(s):
+            c = s[j]
+            if q:
+                if esc: esc = False
+                elif c == '\\': esc = True
+                elif c == q: q = None
+            else:
+                if c in ('"', "'"): q = c
+                elif c == '(': d += 1
+                elif c == ')':
+                    d -= 1
+                    if d == 0:
+                        out.append((s.count('\n', 0, m.start()) + 1, s[m.start():j + 1])); break
+            j += 1
+    return out
+
+def allowed(lines, ln, rid):
+    return any(('lint-allow:' + rid) in l for l in lines[max(0, ln - 2):ln])
+
+ng = []; nrule = 0; seen = set()
+for i, raw in enumerate(open(table, encoding='utf-8'), 1):
+    row = raw.rstrip('\n')
+    if not row.strip() or row.startswith('#'): continue
+    f = row.split('\t')
+    if len(f) < 4:
+        ng.append(f'NG   規則表 {i} 行目: 列が足りない（id<TAB>kind<TAB>glob<TAB>arg1[<TAB>arg2]）'); continue
+    rid, kind, pat, a1 = f[0], f[1], f[2], f[3]; a2 = f[4] if len(f) > 4 else ''
+    if kind not in ('call-has', 'forbid', 'require'):
+        ng.append(f'NG   規則表 {i} 行目: kind が call-has / forbid / require のどれでもない（{kind}）'); continue
+    if kind == 'call-has' and not a2:
+        ng.append(f'NG   規則表 {i} 行目: call-has には arg2（含まれるべき文字列）が要る'); continue
+    rx = None
+    if kind != 'call-has':
+        try: rx = re.compile(a1, re.M)
+        except re.error as e:
+            ng.append(f'NG   規則表 {i} 行目: 無効な正規表現 /{a1}/（{e}）'); continue
+    nrule += 1
+    files = sorted(os.path.normpath(p) for p in glob.glob(pat, recursive=True) if os.path.isfile(p))
+    if only: files = [p for p in files if p in only]
+    for p in files:
+        seen.add(p)
+        s = open(p, encoding='utf-8', errors='replace').read(); lines = s.split('\n')
+        if kind == 'call-has':
+            for ln, c in calls(s, a1):
+                if a2 not in c and not allowed(lines, ln, rid):
+                    ng.append(f'NG   {p}:{ln}: [{rid}] {a1}() の呼び出しに {a2} が無い')
+        elif kind == 'forbid':
+            for m in rx.finditer(s):
+                ln = s.count('\n', 0, m.start()) + 1
+                if not allowed(lines, ln, rid):
+                    ng.append(f'NG   {p}:{ln}: [{rid}] 禁止パターン /{a1}/ に一致')
+        else:
+            if not rx.search(s):
+                ng.append(f'NG   {p}: [{rid}] 必須パターン /{a1}/ が無い')
+if ng:
+    print('\n'.join(ng)); sys.exit(1)
+print(f'OK   rule-lint: 規則 {nrule} 本 × ファイル {len(seen)} 本、違反なし')
+PY

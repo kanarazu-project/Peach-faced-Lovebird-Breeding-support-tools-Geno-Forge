@@ -1,0 +1,4 @@
+# id<TAB>kind<TAB>glob<TAB>arg1[<TAB>arg2]。scripts/rule-lint が読む。
+# call-has: arg1( … ) の呼び出し1つずつに、文字列 arg2 が含まれること。
+# forbid:   正規表現 arg1 に一致する箇所が無いこと。 require: 正規表現 arg1 に一致する箇所がファイルに1つ以上あること。
+# 意図した例外は、該当行かその直前の1行に lint-allow:<id> と理由を書く。

@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# 実在する全 Skill を起点に、登録と発動条件を機械で突き合わせる。どれか1つでも欠ければ NG・終了コード 1。
+#   (1) CLAUDE.md の「## 手順（Skill）」節に、その Skill のパスを含む行があるか（名指し）
+#   (2) .claude/skill-routes.tsv の2列目に、その Skill のパスがあるか（経路の登録）
+#   (3) 名指しの行の括弧内の語が、経路表でも同じ Skill に一致するか（本文が届くか）
+#   (4) 経路表の各行が、タブ区切り・妥当な拡張正規表現・実在する Skill のパスか
+#   (5) 中身のない依頼文に一致する正規表現が無いか（常時発火の検出）
+# 検査の起点は「宣言された行」ではなく「実在するファイル」に置く。宣言から始めると、どこにも登録していない Skill が見えない。
+# scripts/agent-check と、セッション開始時の hook（session-check.sh）から呼ばれる。
+root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
+fail=0
+ng() { echo "NG   $*"; fail=1; }
+ok() { echo "OK   $*"; }
+routes=".claude/skill-routes.tsv"
+shopt -s nullglob
+skills=(.claude/skills/*/SKILL.md)
+if [ "${#skills[@]}" -eq 0 ] && [ ! -f "$routes" ]; then ok "Skill 0 本: 検査対象なし"; exit 0; fi
+[ -f CLAUDE.md ] || { ng "CLAUDE.md が無い"; exit 1; }
+[ -f .claude/hooks/skill-router.sh ] || { ng ".claude/hooks/skill-router.sh が無い"; exit 1; }
+[ -f "$routes" ] || { ng "$routes が無い（Skill が ${#skills[@]} 本あるのに経路表が無い）"; exit 1; }
+
+# 自己テストの入力は JSON ライブラリで組む（引用符やバックスラッシュを含む語でも壊れない）。
+emit() {
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -I -c 'import json,sys; print(json.dumps({"prompt": sys.argv[1]}))' "$1"
+  else printf '%s' "$1"; fi
+}
+route() { emit "$1" | SKILL_ROUTER_MAX=9999 CLAUDE_PROJECT_DIR="$PWD" bash .claude/hooks/skill-router.sh 2>/dev/null; }
+
+tab="$(printf '\t')"
+sect="$(awk '/^## 手順（Skill）/{f=1; next} /^## /{f=0} f' CLAUDE.md)"
+cnt=0
+for sk in "${skills[@]}"; do
+  # (1) 名指し
+  decl="$(printf '%s\n' "$sect" | grep -F -- "$sk" | head -n 1)"
+  [ -n "$decl" ] || ng "未名指し: $sk が CLAUDE.md の「## 手順（Skill）」節に無い。「〈作業〉（語・語・語）では、先に $sk を読み、その手順に従え。」の1行を足せ"
+  # (2) 経路の登録
+  grep -v '^#' "$routes" | awk -F'\t' -v p="$sk" '$2==p{f=1} END{exit !f}' \
+    || ng "未登録: $sk が $routes に無い。「依頼文の正規表現<TAB>$sk」の1行を足せ"
+  # (3) 語の一致
+  [ -n "$decl" ] || continue
+  case "$decl" in *（*）*) terms="${decl#*（}"; terms="${terms%%）*}";; *) terms="";; esac
+  if [ -z "$terms" ]; then ng "条件の欠落: $sk の名指しの行に括弧つきの語が無い。「〈作業〉（語・語・語）では、…」の形で書け"; continue; fi
+  while IFS= read -r w; do
+    [ -n "$w" ] || continue
+    cnt=$((cnt+1))
+    route "$w" | grep -qF "出どころ: $sk" || ng "条件の不一致: CLAUDE.md の語「$w」が、経路表では $sk に一致しない"
+  done <<EOW
+$(printf '%s\n' "$terms" | awk '{gsub(/・/,"\n"); print}')
+EOW
+done
+
+# (4)(5) 経路表の各行
+ln=0
+while IFS= read -r row || [ -n "$row" ]; do
+  ln=$((ln+1))
+  case "$row" in ''|'#'*) continue;; esac
+  case "$row" in *"$tab"*) ;; *) ng "経路表 ${ln} 行目: タブ区切りでない（正規表現<TAB>パス）"; continue;; esac
+  regex="${row%%"$tab"*}"; path="${row#*"$tab"}"
+  printf '' | grep -E -e "$regex" >/dev/null 2>&1
+  [ "$?" -eq 2 ] && { ng "経路表 ${ln} 行目: 無効な正規表現 /$regex/"; continue; }
+  case "$path" in *..*) ng "経路表 ${ln} 行目: パスに .. を含む（$path）"; continue;; .claude/skills/*/SKILL.md) ;; *) ng "経路表 ${ln} 行目: パスが .claude/skills/<名前>/SKILL.md の形でない（$path）"; continue;; esac
+  [ -f "$path" ] || { ng "経路表 ${ln} 行目: パスが実在しない（$path）"; continue; }
+  for canary in "あ" "x"; do
+    if printf '%s' "$canary" | grep -Eiq -e "$regex" 2>/dev/null; then ng "経路表 ${ln} 行目: 中身のない依頼文「$canary」に一致する（常時発火）。/$regex/ を絞れ"; break; fi
+  done
+done < "$routes"
+
+[ "$fail" -eq 0 ] && ok "Skill ${#skills[@]} 本: 名指し・経路の登録・語 ${cnt} 個の一致・正規表現の妥当性、すべて整合"
+exit "$fail"

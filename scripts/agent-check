@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# ハーネス自身の検証入口。登録と発動条件（route-check）、機械検査できる規則（rule-lint）をまとめて走らせる。
+# プロジェクトのテスト・lint・型検査があれば、この下に1行ずつ足せ。CI と pre-commit は、この1本を呼ぶ。
+root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
+rc=0
+bash scripts/route-check || rc=1
+bash scripts/rule-lint "$@" || rc=1
+exit "$rc"
