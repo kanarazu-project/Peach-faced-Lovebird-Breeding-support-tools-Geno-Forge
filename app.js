@@ -262,22 +262,25 @@ function openBirdForm(birdId = null) {
             document.getElementById('birdSex').value = bird.sex;
             document.getElementById('birdBirthDate').value = bird.birthDate || '';
             document.getElementById('birdLineage').value = bird.lineage || '';
-            document.getElementById('birdPhase').value = bird.phase || 'independent';
             document.getElementById('birdNotes').value = bird.notes || '';
             
             if (bird.sire?.id) document.getElementById('birdSire').value = bird.sire.id;
             if (bird.dam?.id) document.getElementById('birdDam').value = bird.dam.id;
             
             if (bird.genotype) {
-                Object.keys(bird.genotype).forEach(key => {
-                    const el = document.getElementById('geno_' + key);
-                    if (el) el.value = bird.genotype[key];
+                // 欄ごとに座位の遺伝子型を読む（ハプロタイプ・旧キーも BirdDB.locusGenotype が読む）
+                generateGenotypeFields();
+                UI_GENOTYPE_LOCI.forEach(config => {
+                    const el = document.getElementById('geno_' + config.key);
+                    if (el) el.value = BirdDB.locusGenotype(bird.genotype, config.source, bird.sex);
                 });
+                refreshPhaseFields(currentPhaseChoices(bird.genotype, bird.sex));
             }
         }
     } else {
         title.textContent = t('register');
         form.reset();
+        refreshPhaseFields({});
     }
     
     modal.classList.add('active');
@@ -321,11 +324,73 @@ function generateGenotypeFields() {
     container.innerHTML = loci.map(locus => `
         <div class="form-group">
             <label class="form-label">${locus.label}</label>
-            <select id="geno_${locus.key}">
+            <select id="geno_${locus.key}" onchange="refreshPhaseFields()">
                 ${locus.options.map(([val, label]) => `<option value="${val}">${label}</option>`).join('')}
             </select>
         </div>
     `).join('');
+    refreshPhaseFields();
+}
+
+/** 登録画面の遺伝子型の欄を、座位キーの genotype にする */
+function formGenotype() {
+    const genotype = {};
+    UI_GENOTYPE_LOCI.forEach(config => {
+        const el = document.getElementById('geno_' + config.key);
+        if (el) genotype[config.source] = el.value;
+    });
+    return genotype;
+}
+
+/** 記録のハプロタイプが、相の並べ方の何番目にあたるか（相が未確定なら null） */
+function currentPhaseChoices(genotype, sex) {
+    const choices = {};
+    Object.keys(BirdDB.HAPLOTYPE_FIELDS).forEach(group => {
+        const [f1, f2] = BirdDB.HAPLOTYPE_FIELDS[group];
+        const store = (genotype || {})[group];
+        if (!store || !store[f1] || genotype[BirdDB.PHASE_FLAGS[group]] === false) { choices[group] = null; return; }
+        const base = { ...genotype };
+        delete base[group];
+        const { pairs } = BirdDB.linkedPairs(base, group, sex);
+        const key = h => GenoData.haplotypeKey(group, h);
+        const stored = [key(store[f1]), key(store[f2] || {})].sort().join('/');
+        const idx = GenoData.phaseArrangements(group, pairs).findIndex(a => a.haps.map(key).sort().join('/') === stored);
+        choices[group] = idx >= 0 ? idx : null;
+    });
+    return choices;
+}
+
+/**
+ * 相の入力欄。連鎖する組でヘテロの座位が2つ以上あるときだけ、並べ方（各染色体が持つ変異アレル）を選ばせる。
+ * 「不明」のまま保存すると、繁殖計画は並べ方の平均と幅を出す。
+ */
+function refreshPhaseFields(selected) {
+    const container = document.getElementById('phaseFields');
+    if (!container) return;
+    const keep = selected || {};
+    if (!selected) {
+        container.querySelectorAll('select[data-group]').forEach(el => { keep[el.dataset.group] = el.value === '' ? null : Number(el.value); });
+    }
+    const sex = document.getElementById('birdSex')?.value || 'male';
+    const genotype = formGenotype();
+    const lang = (typeof LANG !== 'undefined' && LANG === 'ja') ? 'ja' : 'en';
+    const html = Object.keys(BirdDB.HAPLOTYPE_FIELDS).map(group => {
+        const { pairs } = BirdDB.linkedPairs(genotype, group, sex);
+        if (!pairs[0] || pairs[0].length === 1) return '';
+        const arr = GenoData.phaseArrangements(group, pairs);
+        if (arr.length < 2) return '';
+        const loci = GenoData.linkageLoci(group);
+        const label = loci.map(l => (LOCI_MASTER[l]?.name || {})[lang] || l).join('–');
+        const sel = keep[group];
+        return `<div class="form-group">
+            <label class="form-label">${t('phase')}（${escapeHtml(label)}）</label>
+            <select data-group="${group}">
+                <option value=""${sel === null || sel === undefined ? ' selected' : ''}>${t('unknown')}</option>
+                ${arr.map((a, i) => `<option value="${i}"${sel === i ? ' selected' : ''}>${escapeHtml(BirdDB.phaseArrangementLabel(group, a))}</option>`).join('')}
+            </select>
+        </div>`;
+    }).join('');
+    container.innerHTML = html;
 }
 
 function updateGenotypeOptions() {
@@ -368,11 +433,13 @@ function saveBird(event) {
         return;
     }
     
-    const genotype = {};
-    ['parblue', 'ino', 'op', 'cin', 'dark', 'vio', 'fl', 'dil', 'pi'].forEach(key => {
-        const el = document.getElementById('geno_' + key);
-        if (el) genotype[key] = el.value;
+    // 座位キーで保存し、連鎖する組のハプロタイプと相の印を書き込む（相の欄が「不明」なら未確定）
+    const genotype = formGenotype();
+    const choices = {};
+    document.querySelectorAll('#phaseFields select[data-group]').forEach(el => {
+        choices[el.dataset.group] = el.value === '' ? null : Number(el.value);
     });
+    BirdDB.applyPhase(genotype, sex, choices);
     
     const sireId = document.getElementById('birdSire').value;
     const damId = document.getElementById('birdDam').value;
@@ -417,7 +484,6 @@ function saveBird(event) {
         birthDate: document.getElementById('birdBirthDate').value,
         lineage: document.getElementById('birdLineage').value.trim(),
         genotype,
-        phase: document.getElementById('birdPhase').value,
         notes: document.getElementById('birdNotes').value.trim(),
         sire: sireId ? { id: sireId, ...BirdDB.getBird(sireId) } : null,
         dam: damId ? { id: damId, ...BirdDB.getBird(damId) } : null,

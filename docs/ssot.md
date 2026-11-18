@@ -72,10 +72,9 @@ JS にも他の PHP にも書かない。PHP で計算した結果を注入し�
 
 ## 4. 残っている課題
 
-| 箇所 | 中身 | 見立て |
-|---|---|---|
-| 登録画面の相の選択欄 | 「独立 / Z^pld,cin（cis）/ Z^pld / Z^cin（trans）」の値は bird.phase に保存されるが、ハプロタイプ（Z_linked）には反映されない（app.js:265・420 だけが参照） | 利用者が入れた相が繁殖計画に届かない。選択欄からハプロタイプを組む処理を足すか、選択欄を座位ごとの相の入力に作り替える |
-| 変換済みの古い記録の相の印 | phase_known_autosomal_1 は今回から付く。以前に変換して保存された記録には無く、dark–parblue の相は変換時の仮定（変異アレルを chr1 にまとめる）のまま「確定」として扱われる | 記録を読み直して印を付け直す移行処理が要る（移行は承認が要る領域） |
+現時点で、既知の未解決の課題は無い。
 
 解決済み（2026-11-18）: planner.js のメンデル比の係数 → CROSS_TABLE。連鎖する組 → LINKED_CROSS_TABLE（相が不明なら並べ方の平均と幅）。
+登録画面の相 → 連鎖する組でヘテロが2座位以上のとき並べ方を選ぶ欄（app.js refreshPhaseFields）、保存は BirdDB.applyPhase でハプロタイプと相の印へ。
+保存済みの記録 → データ版 7.3.14 の移行（BirdDB.migratePhaseAndKeys）で、欄のキーを座位キーへ、相の印を付け直し、旧い cis/trans の指定を反映。
 breeding.js → 削除。定義に無い組み合わせの色名 → generateColorName と birds.js が同じ表。ブラウザ用 JS テスト → scripts/browser-test。

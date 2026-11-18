@@ -19,7 +19,7 @@ const BirdDB = {
     STORAGE_KEY_USER: 'geneforge_birds_user',
     STORAGE_KEY_DEMO: 'geneforge_birds_demo',
     MODE_KEY: 'geneforge_mode',
-    VERSION: '7.3.13',
+    VERSION: '7.3.14',
     
     _currentMode: 'user',
     _initialized: false,
@@ -1520,8 +1520,147 @@ const BirdDB = {
         if (!bird.genotype.Z_linked) {
             bird.genotype = this.migrateGenotypeToV7(bird.genotype, bird.sex, bird.observed?.baseColor);
         }
+        this.migratePhaseAndKeys(bird);
 
         return bird;
+    },
+
+    /**
+     * v7.3.14: 記録の正規化（何度走らせても同じ結果）
+     * 1. 登録画面の欄のキー（op・cin・vio など）で保存された値を座位キーへ移す
+     * 2. 旧形式から変換した記録（_legacy あり）の相の印を、ヘテロの座位の数で付け直す（2座位以上なら未確定）
+     * 3. 旧い登録画面の相（bird.phase が cis_〜 / trans_〜）は、Z 上のヘテロがちょうど2座位のオスに限って
+     *    ハプロタイプへ反映し、確定とする（3座位以上は cis / trans だけでは並べ方が決まらないので未確定のまま）
+     */
+    migratePhaseAndKeys(bird) {
+        const g = bird.genotype || (bird.genotype = {});
+        const uiKeys = (GenoData.data() || {}).uiKeys || {};
+        for (const [key, locus] of Object.entries(uiKeys)) {
+            if (key === locus || g[key] === undefined) continue;
+            if (!g[locus] || GenoData.isWild(locus, g[locus])) g[locus] = GenoData.canonical(locus, g[key]);
+            delete g[key];
+        }
+        if (!g._legacy) return bird;
+        for (const group of Object.keys(this.HAPLOTYPE_FIELDS)) {
+            const { pairs } = this.linkedPairs({ ...g, [this.PHASE_FLAGS[group]]: undefined }, group, bird.sex);
+            if (pairs[0] && pairs[0].length === 1) continue;
+            g[this.PHASE_FLAGS[group]] = pairs.filter(p => p[0] !== p[1]).length < 2;
+        }
+        const legacyPhase = typeof bird.phase === 'string' ? bird.phase : '';
+        const wantCis = legacyPhase.startsWith('cis_'), wantTrans = legacyPhase.startsWith('trans_');
+        if ((wantCis || wantTrans) && bird.sex === 'male' && g.phase_known === false) {
+            const group = 'Z_linked';
+            const loci = GenoData.linkageLoci(group);
+            const { pairs } = this.linkedPairs(g, group, bird.sex);
+            const het = pairs.filter(p => p[0] !== p[1]).length;
+            if (het === 2) {
+                const wild = l => (GenoData.alleles(l, GenoData.wildGenotype(l, 'male')) || [])[0];
+                const arr = GenoData.phaseArrangements(group, pairs);
+                const idx = arr.findIndex(a => {
+                    const onFirst = loci.filter(l => a.haps[0][l] !== wild(l)).length;
+                    const onSecond = loci.filter(l => a.haps[1][l] !== wild(l)).length;
+                    return wantCis ? (onFirst === 0 || onSecond === 0) : (onFirst > 0 && onSecond > 0);
+                });
+                if (idx >= 0) {
+                    const [f1, f2] = this.HAPLOTYPE_FIELDS[group];
+                    g[group] = { [f1]: arr[idx].haps[0], [f2]: arr[idx].haps[1] };
+                    g[this.PHASE_FLAGS[group]] = true;
+                }
+            }
+        }
+        return bird;
+    },
+
+    /** 記録のハプロタイプの欄名（連鎖する組 → [1本目, 2本目]）と、相の確定の印 */
+    HAPLOTYPE_FIELDS: { Z_linked: ['Z1', 'Z2'], autosomal_1: ['chr1', 'chr2'] },
+    PHASE_FLAGS: { Z_linked: 'phase_known', autosomal_1: 'phase_known_autosomal_1' },
+
+    /**
+     * 記録から座位の遺伝子型（正規の表記）を読む。連鎖する座位はハプロタイプを優先し、
+     * 無ければ登録画面の欄のキー（op・cin など）、座位キー、繁殖計画の伴性キー、旧形式の _legacy の順に探す。無ければ野生型。
+     */
+    locusGenotype(genotype, locus, sex) {
+        const g = genotype || {};
+        const hemi = !!(GenoData.locus(locus) || {}).sexLinked && sex === 'female';
+        const wild = (GenoData.alleles(locus, GenoData.wildGenotype(locus, 'male')) || [])[0];
+        const group = GenoData.linkageGroupOf(locus);
+        const [f1, f2] = group ? this.HAPLOTYPE_FIELDS[group] : [];
+        const store = group ? g[group] : null;
+        if (store && store[f1]) {
+            const a1 = store[f1][locus] || wild;
+            const alleles = hemi ? [a1] : [a1, (store[f2] && store[f2][locus]) || wild];
+            return GenoData.fromAlleles(locus, alleles) || GenoData.wildGenotype(locus, sex);
+        }
+        const uiKeys = (GenoData.data() || {}).uiKeys || {};
+        const slrKeys = (GenoData.data() || {}).plannerSlrKeys || {};
+        const keys = [...Object.keys(uiKeys).filter(k => uiKeys[k] === locus && k !== locus), locus,
+                      ...Object.keys(slrKeys).filter(k => slrKeys[k] === locus && k !== locus)];
+        const legacy = g._legacy || {};
+        const raw = keys.map(k => g[k]).find(v => v) || keys.map(k => legacy[k]).find(v => v);
+        return GenoData.canonical(locus, raw || GenoData.wildGenotype(locus, sex));
+    },
+
+    /**
+     * 連鎖する組のアレルの組（座位の順に [アレル, アレル]、伴性のメスは [アレル]）と、相が確定しているか。
+     * ハプロタイプがあれば相の印（無ければ確定）に従い、無ければヘテロが2座位以上のとき未確定。
+     */
+    linkedPairs(genotype, group, sex) {
+        const g = genotype || {};
+        const loci = GenoData.linkageLoci(group) || [];
+        const hemi = loci.length > 0 && !!(GenoData.locus(loci[0]) || {}).sexLinked && sex === 'female';
+        const pairs = loci.map(l => {
+            const a = GenoData.alleles(l, this.locusGenotype(g, l, sex)) || [];
+            return hemi ? [a[0]] : [a[0], a.length > 1 ? a[1] : a[0]];
+        });
+        if (hemi) return { pairs, known: true };
+        const store = g[group], f1 = this.HAPLOTYPE_FIELDS[group][0];
+        const hetCount = pairs.filter(p => p[0] !== p[1]).length;
+        const known = (store && store[f1]) ? g[this.PHASE_FLAGS[group]] !== false : hetCount < 2;
+        if (store && store[f1]) {
+            // ハプロタイプの向きをそのまま残す（1本目のアレルを先に）
+            const [, f2] = this.HAPLOTYPE_FIELDS[group];
+            const wild = l => (GenoData.alleles(l, GenoData.wildGenotype(l, 'male')) || [])[0];
+            return { pairs: loci.map(l => [store[f1][l] || wild(l), (store[f2] && store[f2][l]) || wild(l)]), known };
+        }
+        return { pairs, known };
+    },
+
+    /**
+     * 座位ごとの遺伝子型が入った genotype に、連鎖する組のハプロタイプと相の印を書き込む。
+     * choices[組] は GenoData.phaseArrangements の番号（相を選んだとき）か null（不明）。並べ方が1通りなら確定。
+     */
+    applyPhase(genotype, sex, choices = {}) {
+        for (const group of Object.keys(this.HAPLOTYPE_FIELDS)) {
+            const loci = GenoData.linkageLoci(group);
+            if (!loci) continue;
+            const base = { ...genotype };
+            delete base[group];
+            const { pairs } = this.linkedPairs(base, group, sex);
+            const [f1, f2] = this.HAPLOTYPE_FIELDS[group];
+            if (pairs[0] && pairs[0].length === 1) {
+                genotype[group] = { [f1]: Object.fromEntries(loci.map((l, i) => [l, pairs[i][0]])), [f2]: null };
+                genotype[this.PHASE_FLAGS[group]] = true;
+                continue;
+            }
+            const arr = GenoData.phaseArrangements(group, pairs);
+            const choice = choices[group];
+            const pick = (choice !== null && choice !== undefined && arr[choice]) ? arr[choice] : arr[0];
+            genotype[group] = { [f1]: pick.haps[0], [f2]: pick.haps[1] };
+            genotype[this.PHASE_FLAGS[group]] = arr.length === 1 || !!arr[choice];
+        }
+        return genotype;
+    },
+
+    /** 相の並べ方の表示（各染色体が持つ変異アレル。無ければ +） */
+    phaseArrangementLabel(group, arrangement) {
+        const loci = GenoData.linkageLoci(group) || [];
+        const wild = l => (GenoData.alleles(l, GenoData.wildGenotype(l, 'male')) || [])[0];
+        // 変異アレルの多い染色体を先に書く（cis は「a·b / +」、trans は「a / b」）
+        return arrangement.haps
+            .map(h => loci.filter(l => h[l] !== wild(l)).map(l => h[l]))
+            .sort((x, y) => y.length - x.length)
+            .map(mut => (mut.length ? mut.join('·') : '+'))
+            .join(' / ');
     },
 
     /**

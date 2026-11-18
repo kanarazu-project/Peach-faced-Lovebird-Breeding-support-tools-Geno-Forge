@@ -5,6 +5,8 @@
 #   3. planner.js  TARGET_REQUIREMENTS が GENOTYPE_DATA.targets そのものであり、isCompatibleSplit が ino と pld を区別する
 #   4. genodata.js 全座位の全表記で、canonical / isWild / wildGenotype が PHP の表と一致する
 #   7. planner.js  連鎖する組: 親のハプロタイプ（cis / trans）からの確率が PHP の calculateOffspring と一致し、相が不明なら cis と trans の平均になる
+#   8. birds.js  登録画面の相（applyPhase）と記録の移行（migrateBird）: 選んだ相・旧い cis/trans の指定がハプロタイプに入り、
+#                 繁殖計画の確率が PHP と一致する。不明は未確定のまま。欄のキー（vio など）は座位キーへ移る
 #   6. birds.js  composeColorName: 定義に無い組み合わせの色名が PHP の generateColorName と一致する（日本語・英語）
 #   5. planner.js  calculateTargetProbability が、色の定義どおりの親の交配で PHP の calculateOffspring と同じ確率を返す
 root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
@@ -82,6 +84,40 @@ else {
     `planner linkage phase unknown: ${JSON.stringify(d)} (cis/trans ${lo}/${hi})`);
   const k = ctx.$P.calculateTargetProbabilityDetail(linkBird('male', consts.LINK_CASES[0][2]), linkBird('female', {}), D.targets.opaline_cinnamon_green);
   check(!k.phaseUnknown, 'planner linkage: recorded haplotypes count as known phase');
+}
+{
+  const G = ctx.$G, B = ctx.$B, P = ctx.$P;
+  const cinC = G.carrier('cinnamon', G.colorGenotype('cinnamon_green', 'male').cinnamon);
+  const opC = G.carrier('opaline', G.colorGenotype('opaline_green', 'male').opaline);
+  const oc = D.targets.opaline_cinnamon_green, hen = { sex: 'female', genotype: {} };
+  const cis = linkGot['cin-op cis'], trans = linkGot['cin-op trans'];
+  const prob = g => P.calculateTargetProbabilityDetail({ sex: 'male', genotype: g }, hen, oc);
+  // 登録画面: 並べ方を選ぶと確定、不明なら未確定
+  const arr = G.phaseArrangements('Z_linked', B.linkedPairs({ cinnamon: cinC, opaline: opC }, 'Z_linked', 'male').pairs);
+  const label = i => B.phaseArrangementLabel('Z_linked', arr[i]);
+  const cisIdx = [0, 1].find(i => label(i).endsWith('/ +')), transIdx = 1 - cisIdx;
+  check(arr.length === 2 && cisIdx !== undefined, `applyPhase: two arrangements with one cis (${[0, 1].map(label)})`);
+  for (const [name, choice, expect] of [['cis', cisIdx, cis], ['trans', transIdx, trans]]) {
+    const g = B.applyPhase({ cinnamon: cinC, opaline: opC }, 'male', { Z_linked: choice });
+    const d = prob(g);
+    check(g.phase_known === true && !d.phaseUnknown && Math.abs(d.mean - expect) < 1e-9, `applyPhase ${name}: ${JSON.stringify(d)} (PHP ${expect})`);
+  }
+  const gu = B.applyPhase({ cinnamon: cinC, opaline: opC }, 'male', { Z_linked: null });
+  const du = prob(gu);
+  check(gu.phase_known === false && du.phaseUnknown && Math.abs(du.mean - (cis + trans) / 2) < 1e-9, `applyPhase unknown: ${JSON.stringify(du)}`);
+  // 記録の移行: 旧形式（欄のキー op・cin）と旧い相の指定
+  const legacy = phase => B.migrateBird({ sex: 'male', phase, observed: { baseColor: 'green' }, pedigree: {}, genotype: { cin: cinC, op: opC } });
+  for (const [phase, expect, unknown] of [['cis_pld_cin', cis, false], ['trans_pld_cin', trans, false], ['independent', (cis + trans) / 2, true]]) {
+    const bird = legacy(phase), d = prob(bird.genotype);
+    check(d.phaseUnknown === unknown && Math.abs(d.mean - expect) < 1e-9 && bird.genotype.phase_known === !unknown,
+      `migrateBird phase ${phase}: ${JSON.stringify(d)} known=${bird.genotype.phase_known} (expected ${expect})`);
+  }
+  const darkC = G.colorGenotype('darkgreen', 'male').dark, aqC = G.carrier('parblue', G.colorGenotype('aqua', 'male').parblue);
+  const a1 = B.migrateBird({ sex: 'female', observed: { baseColor: 'darkgreen' }, pedigree: {}, genotype: { dark: darkC, parblue: aqC } });
+  check(a1.genotype.phase_known_autosomal_1 === false, 'migrateBird: dark+parblue double heterozygote is phase unknown');
+  const vC = G.colorGenotype('violet_' + 'aqua', 'male') || {};
+  const keyed = B.migrateBird({ sex: 'male', observed: { baseColor: 'green' }, pedigree: {}, genotype: { Z_linked: { Z1: {}, Z2: {} }, violet: G.wildGenotype('violet'), vio: vC.violet || G.carrier('violet', 'VV') } });
+  check(keyed.genotype.vio === undefined && !G.isWild('violet', keyed.genotype.violet), `migrateBird: form key vio moved to violet (${JSON.stringify(keyed.genotype.violet)})`);
 }
 for (const [geno, expected] of consts.NAME_CASES) for (const lang of ['ja', 'en']) {
   const got = ctx.$B.composeColorName(geno, lang);

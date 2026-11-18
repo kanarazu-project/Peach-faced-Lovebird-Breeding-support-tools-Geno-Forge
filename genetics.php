@@ -551,6 +551,9 @@ final class AgapornisLoci
                 'bySignature' => $colorBySignature,
             ],
             'colorName' => $colorName,
+            // 連鎖する組 → 座位（LINKAGE_GROUPS の順）と、登録画面の欄のキー → 座位（UI_GENOTYPE_LOCI）
+            'linkageGroups' => array_map(fn($g) => $g['loci'], self::LINKAGE_GROUPS),
+            'uiKeys' => array_column(self::UI_GENOTYPE_LOCI, 'source', 'key'),
             'darknessByDark' => $darknessByDark,
         ];
     }

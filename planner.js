@@ -406,58 +406,22 @@ const BreedingPlanner = {
         };
     },
 
-    /**
-     * 個体の座位の遺伝子型（正規の表記）。座位キー、繁殖計画の伴性キー（cin・op）、旧形式の _legacy の順に探し、無ければ野生型。
-     */
+    /** 個体の座位の遺伝子型（記録の読み方は BirdDB.locusGenotype） */
     _locusGenotype(geno, locus, sex) {
-        const keys = GENOTYPE_DATA.plannerSlrKeys;
-        const slrKey = Object.keys(keys).find(k => keys[k] === locus);
-        const legacy = geno._legacy || {};
-        const raw = geno[locus] || (slrKey && geno[slrKey]) || legacy[locus] || (slrKey && legacy[slrKey]);
-        return GenoData.canonical(locus, raw || GenoData.wildGenotype(locus, sex));
+        return BirdDB.locusGenotype(geno, locus, sex);
     },
 
     /**
-     * 親の連鎖する組のハプロタイプの候補 [{haps, w}]。
-     * 記録にハプロタイプ（Z_linked.Z1/Z2・autosomal_1.chr1/chr2）があり相が確定していればその1通り。
-     * 相が未確定（phase_known / phase_known_autosomal_1 が false）か、座位ごとの遺伝子型しか無いときは、
-     * ヘテロの座位のアレルの並べ方をすべて等しい重みで返す（ヘテロが1座位以下なら1通り）。
+     * 親の連鎖する組のハプロタイプの候補 [{haps, w}]。相が確定していればその1通り、
+     * 未確定なら GenoData.phaseArrangements の並べ方を等しい重みで返す。
      */
     _haplotypeOptions(geno, group, sex) {
-        const g = GenoData.linkedGroup(group);
-        const hemi = g.sexLinked && sex === 'female';
-        const wild = l => (GenoData.alleles(l, GenoData.wildGenotype(l, 'male')) || [])[0];
-        const store = geno[group] || {};
-        const first = store.Z1 || store.chr1, second = store.Z2 || store.chr2;
-        let pairs;
-        if (first) {
-            const h1 = {}, h2 = {};
-            for (const l of g.loci) { h1[l] = first[l] || wild(l); h2[l] = (second && second[l]) || wild(l); }
-            if (hemi) return [{ haps: [h1], w: 1 }];
-            const flag = group === 'Z_linked' ? geno.phase_known : geno.phase_known_autosomal_1;
-            if (flag !== false) return [{ haps: [h1, h2], w: 1 }];
-            pairs = g.loci.map(l => [h1[l], h2[l]]);
-        } else {
-            pairs = g.loci.map(l => {
-                const a = GenoData.alleles(l, this._locusGenotype(geno, l, sex)) || [wild(l), wild(l)];
-                return hemi ? [a[0]] : [a[0], a.length > 1 ? a[1] : a[0]];
-            });
-            if (hemi) return [{ haps: [Object.fromEntries(g.loci.map((l, i) => [l, pairs[i][0]]))], w: 1 }];
-        }
-        const het = pairs.map((p, i) => (p[0] !== p[1] ? i : -1)).filter(i => i >= 0);
-        const n = Math.max(0, het.length - 1);
-        const options = [];
-        for (let mask = 0; mask < (1 << n); mask++) {
-            const h1 = {}, h2 = {};
-            g.loci.forEach((l, i) => {
-                const k = het.indexOf(i);
-                const flip = k > 0 && (mask >> (k - 1)) & 1;
-                h1[l] = flip ? pairs[i][1] : pairs[i][0];
-                h2[l] = flip ? pairs[i][0] : pairs[i][1];
-            });
-            options.push({ haps: [h1, h2], w: 1 / (1 << n) });
-        }
-        return options;
+        const loci = GenoData.linkageLoci(group) || [];
+        const { pairs, known } = BirdDB.linkedPairs(geno, group, sex);
+        if (pairs[0] && pairs[0].length === 1) return [{ haps: [Object.fromEntries(loci.map((l, i) => [l, pairs[i][0]]))], w: 1 }];
+        if (known) return [{ haps: [Object.fromEntries(loci.map((l, i) => [l, pairs[i][0]])), Object.fromEntries(loci.map((l, i) => [l, pairs[i][1]]))], w: 1 }];
+        const arr = GenoData.phaseArrangements(group, pairs);
+        return arr.map(a => ({ haps: a.haps, w: 1 / arr.length }));
     },
 
     // v7.0: 翻訳対応

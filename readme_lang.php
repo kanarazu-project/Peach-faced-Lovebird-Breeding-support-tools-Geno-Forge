@@ -57,6 +57,7 @@ const README_LANG = [
         'feat_linkage_2' => '常染色体連鎖: dark-parblue（7%）の組換え率を実装',
         'feat_linkage_3' => '相（Cis/Trans）推論: 連鎖座位の相を家系情報から推定',
         'feat_linkage_4' => '連鎖対応プランナー: Cis/Trans相を考慮した交配経路の探索',
+        'feat_linkage_5' => '相の入力: 個体登録で、連鎖する座位が2つ以上ヘテロのとき、染色体上の並び（cis/trans）を選べる。不明のままなら繁殖計画は平均と幅を表示',
 
         'feat_estimate' => '遺伝推計（親型逆推）',
         'feat_estimate_1' => '表現型→遺伝子型: 観察された色から可能な遺伝子型を推定',
@@ -242,6 +243,7 @@ const README_LANG = [
         'feat_linkage_2' => 'Autosomal Linkage: Recombination rate for dark-parblue (7%)',
         'feat_linkage_3' => 'Phase (Cis/Trans) Inference: Estimate linkage phase from pedigree information',
         'feat_linkage_4' => 'Linkage-Aware Planner: Breeding path exploration considering Cis/Trans phase',
+        'feat_linkage_5' => 'Phase input: when two or more linked loci are heterozygous, choose their arrangement on the chromosomes (cis/trans) at registration. If left unknown, the planner shows the mean and the range',
 
         'feat_estimate' => 'Genotype Estimator',
         'feat_estimate_1' => 'Phenotype→Genotype: Estimate possible genotypes from observed colors',
@@ -427,6 +429,7 @@ const README_LANG = [
         'feat_linkage_2' => 'Autosomale Kopplung: Rekombinationsrate dark-parblue (7%)',
         'feat_linkage_3' => 'Phase (Cis/Trans) Inferenz: Kopplungsphase aus Stammbaum schätzen',
         'feat_linkage_4' => 'Kopplungsbewusster Planer: Zuchtpfadsuche unter Berücksichtigung der Cis/Trans-Phase',
+        'feat_linkage_5' => 'Phaseneingabe: Sind zwei oder mehr gekoppelte Loci heterozygot, wird bei der Registrierung die Anordnung auf den Chromosomen (Cis/Trans) gewählt. Bleibt sie unbekannt, zeigt der Planer Mittelwert und Spanne',
 
         'feat_estimate' => 'Genotyp-Schätzer',
         'feat_estimate_1' => 'Phänotyp→Genotyp: Genotypen aus beobachteten Farben schätzen',
@@ -612,6 +615,7 @@ const README_LANG = [
         'feat_linkage_2' => 'Liaison autosomale: Taux de recombinaison dark-parblue (7%)',
         'feat_linkage_3' => 'Inférence de phase (Cis/Trans): Estimer la phase de liaison depuis le pédigrée',
         'feat_linkage_4' => 'Planificateur liaison: Recherche de chemins considérant la phase Cis/Trans',
+        'feat_linkage_5' => 'Saisie de la phase : si deux loci liés ou plus sont hétérozygotes, on choisit leur disposition sur les chromosomes (cis/trans) à l\'enregistrement. Si elle reste inconnue, le planificateur affiche la moyenne et l\'intervalle',
 
         'feat_estimate' => 'Estimateur génotype',
         'feat_estimate_1' => 'Phénotype→Génotype: Estimer génotypes depuis couleurs observées',
@@ -797,6 +801,7 @@ const README_LANG = [
         'feat_linkage_2' => 'Linkage autosomale: Tasso di ricombinazione dark-parblue (7%)',
         'feat_linkage_3' => 'Inferenza fase (Cis/Trans): Stimare la fase di linkage dal pedigree',
         'feat_linkage_4' => 'Pianificatore linkage: Ricerca percorsi considerando la fase Cis/Trans',
+        'feat_linkage_5' => 'Inserimento della fase: se due o più loci associati sono eterozigoti, alla registrazione si sceglie la disposizione sui cromosomi (cis/trans). Se resta sconosciuta, il pianificatore mostra media e intervallo',
 
         'feat_estimate' => 'Stimatore genotipo',
         'feat_estimate_1' => 'Fenotipo→Genotipo: Stimare genotipi da colori osservati',
@@ -982,6 +987,7 @@ const README_LANG = [
         'feat_linkage_2' => 'Ligamiento autosómico: Tasa de recombinación dark-parblue (7%)',
         'feat_linkage_3' => 'Inferencia de fase (Cis/Trans): Estimar fase de ligamiento desde el pedigrí',
         'feat_linkage_4' => 'Planificador de ligamiento: Búsqueda de rutas considerando la fase Cis/Trans',
+        'feat_linkage_5' => 'Entrada de fase: si dos o más loci ligados son heterocigotos, al registrar se elige su disposición en los cromosomas (cis/trans). Si queda desconocida, el planificador muestra la media y el rango',
 
         'feat_estimate' => 'Estimador genotipo',
         'feat_estimate_1' => 'Fenotipo→Genotipo: Estimar genotipos desde colores observados',
@@ -1167,6 +1173,7 @@ const README_LANG = [
         'feat_linkage_2' => 'Linkage Autosomal: Tingkat rekombinasi dark-parblue (7%)',
         'feat_linkage_3' => 'Inferensi Fase (Cis/Trans): Memperkirakan fase linkage dari informasi silsilah',
         'feat_linkage_4' => 'Perencana Sadar Linkage: Eksplorasi jalur peternakan mempertimbangkan fase Cis/Trans',
+        'feat_linkage_5' => 'Input fase: jika dua lokus terkait atau lebih heterozigot, susunannya pada kromosom (cis/trans) dipilih saat registrasi. Jika tetap tidak diketahui, perencana menampilkan rata-rata dan rentangnya',
 
         'feat_estimate' => 'Estimator Genotipe',
         'feat_estimate_1' => 'Fenotipe→Genotipe: Memperkirakan genotipe yang mungkin dari warna yang diamati',

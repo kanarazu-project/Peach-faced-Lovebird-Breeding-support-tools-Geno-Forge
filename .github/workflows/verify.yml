@@ -20,11 +20,13 @@ jobs:
           php -v
           node -v
           python3 --version
-      # scripts/browser-test 用。版はローカル環境の Playwright と揃える
+      # scripts/browser-test 用。版はローカル環境の Playwright と揃える。
+      # Chromium が使う OS ライブラリはランナーの像に入っているので --with-deps は付けない
+      # （付けると apt で追加のフォントを取りに行き、ミラーしだいで数分かかる）。足りなければ browser-test が起動失敗で NG を出す。
       - name: Install Playwright and Chromium
         run: |
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-audit --no-fund playwright@1.63.0
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: scripts/agent-check
         env:

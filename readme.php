@@ -96,6 +96,7 @@ hr{border:none;border-top:1px solid #2a3545;margin:2rem 0}
 <li><strong><?= rt('feat_linkage_2') ?></strong></li>
 <li><strong><?= rt('feat_linkage_3') ?></strong></li>
 <li><strong><?= rt('feat_linkage_4') ?></strong></li>
+<li><strong><?= rt('feat_linkage_5') ?></strong></li>
 </ul>
 
 <h3>🔬 <?= rt('feat_estimate') ?></h3>

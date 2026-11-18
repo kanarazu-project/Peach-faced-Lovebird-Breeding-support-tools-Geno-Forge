@@ -128,6 +128,41 @@ const GenoData = {
         return p;
     },
 
+    /** 連鎖する組の座位（LINKAGE_GROUPS の順）。group を省くと {組: [座位...]} */
+    linkageLoci(group) {
+        const d = this.data();
+        const groups = d ? (d.linkageGroups || {}) : {};
+        return group ? (groups[group] || null) : groups;
+    },
+
+    /** 座位が属する連鎖する組。無ければ null */
+    linkageGroupOf(locusKey) {
+        const groups = this.linkageLoci();
+        return Object.keys(groups).find(g => groups[g].includes(locusKey)) || null;
+    },
+
+    /**
+     * 相の並べ方。pairs は組の座位の順に [アレル, アレル]。ヘテロの座位のアレルを2本の染色体に振り分ける並べ方を、
+     * 最初のヘテロの座位の向きを固定してすべて返す（ヘテロが1座位以下なら1通り）。各要素は {haps: [h1, h2]}。
+     */
+    phaseArrangements(group, pairs) {
+        const loci = this.linkageLoci(group) || [];
+        const het = pairs.map((p, i) => (p[0] !== p[1] ? i : -1)).filter(i => i >= 0);
+        const n = Math.max(0, het.length - 1);
+        const out = [];
+        for (let mask = 0; mask < (1 << n); mask++) {
+            const h1 = {}, h2 = {};
+            loci.forEach((l, i) => {
+                const k = het.indexOf(i);
+                const flip = k > 0 && ((mask >> (k - 1)) & 1);
+                h1[l] = flip ? pairs[i][1] : pairs[i][0];
+                h2[l] = flip ? pairs[i][0] : pairs[i][1];
+            });
+            out.push({ haps: [h1, h2] });
+        }
+        return out;
+    },
+
     /** 変異アレルを1つ持つ保因の遺伝子型（targetGenotype の変異アレルと野生型アレルの組。伴性メスはヘミ接合） */
     carrier(locusKey, targetGenotype, sex = 'male') {
         const mutant = this.mutantAlleles(locusKey, targetGenotype)[0];

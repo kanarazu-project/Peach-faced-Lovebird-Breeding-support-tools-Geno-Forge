@@ -2,7 +2,8 @@
 # ブラウザで JS を実際に動かす検査。1件でも失敗すれば NG・終了コード 1。
 #   1. debug_test.php?run_tests=1 の JS テスト（bv / hg / bp の一覧）に失敗が無く、件数が 0 でない
 #   2. debug_test.php と index.php でページのエラー（pageerror・console.error）が出ない
-#   3. index.php で GenoData・CROSS_TABLE が読み込まれ、色名・繁殖計画の確率（連鎖の cis/trans を含む）が正本の表で計算できる
+#   3. index.php で GenoData・CROSS_TABLE が読み込まれ、色名・繁殖計画の確率（連鎖の cis/trans を含む）が正本の表で計算できる。
+#      登録画面で選んだ相が保存され、確率と編集画面に反映される（試験用の個体は最後に消す）
 # Playwright（node から require('playwright')）と Chromium が要る。無い環境では SKIP して 0 を返す。
 # BROWSER_TEST_REQUIRED=1（CI）のときは、無ければ NG にする。
 root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
@@ -64,6 +65,28 @@ const base = process.env.BASE, ng = [];
     const wildF = { sex: 'female', genotype: {} }, oc = BreedingPlanner.TARGET_REQUIREMENTS.opaline_cinnamon_green;
     out.cis = BreedingPlanner.calculateTargetProbability(z({ cinnamon: 'cin', opaline: 'op' }, {}), wildF, oc);
     out.trans = BreedingPlanner.calculateTargetProbability(z({ cinnamon: 'cin' }, { opaline: 'op' }), wildF, oc);
+    // 登録画面: 相の欄で cis を選んで保存 → 繁殖計画の確率と、編集時の欄の再現
+    try {
+      openBirdForm();
+      document.getElementById('birdSex').value = 'male'; updateGenotypeOptions();
+      const setv = (k, v) => { const el = document.getElementById('geno_' + k); el.value = v; el.dispatchEvent(new Event('change')); };
+      setv('cin', GenoData.carrier('cinnamon', GenoData.colorGenotype('cinnamon_green', 'male').cinnamon));
+      setv('op', GenoData.carrier('opaline', GenoData.colorGenotype('opaline_green', 'male').opaline));
+      const sel = document.querySelector('#phaseFields select[data-group="Z_linked"]');
+      const cisOpt = sel ? [...sel.options].find(o => o.value !== '' && o.textContent.trim().endsWith('/ +')) : null;
+      if (cisOpt) sel.value = cisOpt.value;
+      document.getElementById('birdName').value = '__browser_test_phase__';
+      saveBird({ preventDefault() {} });
+      const saved = BirdDB.getAllBirds().find(x => x.name === '__browser_test_phase__');
+      out.formCis = saved ? BreedingPlanner.calculateTargetProbability(saved, wildF, oc) : null;
+      if (saved) {
+        openBirdForm(saved.id);
+        const sel2 = document.querySelector('#phaseFields select[data-group="Z_linked"]');
+        out.formEdit = sel2 && cisOpt ? sel2.value === cisOpt.value : false;
+        closeBirdForm();
+        BirdDB.deleteBird(saved.id);
+      }
+    } catch (e) { out.formError = e.message; }
     out.name = BirdDB.composeColorName({ parblue: 'aqaq', dark: 'Dd', pied_dom: 'Pi+', fallow_bronze: 'flbflb' }, 'en');
     return out;
   });
@@ -71,6 +94,9 @@ const base = process.env.BASE, ng = [];
   if (app.CROSS_TABLE !== 'object') ng.push('index.php: CROSS_TABLE が無い');
   if (app.seagreen === undefined || Math.abs(app.seagreen - 1) > 1e-9) ng.push(`index.php: turquoise × aqua → seagreen の確率が 1 でない（${app.seagreen}）`);
   if (!(Math.abs(app.cis - 0.172) < 1e-9 && Math.abs(app.trans - 0.078) < 1e-9)) ng.push(`index.php: 連鎖（cin–op）の cis/trans が PHP と違う（${app.cis} / ${app.trans}）`);
+  if (app.formError) ng.push('index.php: 登録画面の相の入力でエラー: ' + app.formError);
+  if (!(Math.abs(app.formCis - 0.172) < 1e-9)) ng.push(`index.php: 登録画面で cis を選んだ個体の確率が 17.2% でない（${app.formCis}）`);
+  if (app.formEdit !== true) ng.push('index.php: 編集画面で保存した相が選ばれていない');
   if (app.name !== 'Bronze Fallow Dominant Pied Aqua Dark') ng.push(`index.php: 色名の組み立てが PHP と違う（${app.name}）`);
   for (const e of ix.errors) ng.push('index.php ' + e);
   await browser.close();

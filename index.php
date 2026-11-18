@@ -907,14 +907,8 @@ const INDEPENDENT_LOCI = <?= json_encode(AgapornisLoci::INDEPENDENT_LOCI) ?>;
                             </details>
                             <h4 class="section-title"><?= t('genotype_info') ?></h4>
                             <div class="form-grid genotype-grid" id="genotypeFields"></div>
-                            <div class="form-group">
-                                <label class="form-label"><?= t('phase') ?></label>
-                                <select id="birdPhase">
-                                    <option value="independent"><?= t('phase_independent') ?></option>
-                                    <option value="cis_pld_cin">Z^pld,cin (cis)</option>
-                                    <option value="trans_pld_cin">Z^pld / Z^cin (trans)</option>
-                                </select>
-                            </div>
+                            <!-- 相（連鎖する組でヘテロが2座位以上のときだけ app.js の refreshPhaseFields が欄を出す） -->
+                            <div id="phaseFields" class="form-grid"></div>
                             <div class="form-group">
                                 <label class="form-label"><?= t('notes') ?></label>
                                 <textarea id="birdNotes" rows="2"></textarea>
