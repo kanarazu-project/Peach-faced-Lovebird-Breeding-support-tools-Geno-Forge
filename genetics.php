@@ -5154,6 +5154,104 @@ class PathFinder
 class GenotypeEstimator
 {
     /**
+     * 学術表記（血統書の遺伝子型欄）。正本はここ。JS（pedigree.js）は PEDIGREE_DATA 経由で引く。
+     * 伴性メスのヘミ接合（+W, inoW など）は pedigreeData() で LOCI のアレルから生成する。
+     */
+    public const ACADEMIC_NOTATION = [
+        // Parblue
+        '++' => '+/+', '+aq' => '+/b^aq', 'aqaq' => 'b^aq/b^aq',
+        '+tq' => '+/b^tq', 'tqtq' => 'b^tq/b^tq', 'tqaq' => 'b^tq/b^aq',
+        // Dark
+        'dd' => 'd/d', 'Dd' => 'D/d', 'DD' => 'D/D',
+        // Violet
+        'vv' => 'v/v', 'Vv' => 'V/v', 'VV' => 'V/V',
+        // INO（オス）
+        '+ino' => '+/Z^ino', 'inoino' => 'Z^ino/Z^ino',
+        '+pld' => '+/Z^pld', 'pldpld' => 'Z^pld/Z^pld', 'pldino' => 'Z^pld/Z^ino',
+        // Opaline（オス）
+        '+op' => '+/Z^op', 'opop' => 'Z^op/Z^op',
+        // Cinnamon（オス）
+        '+cin' => '+/Z^cin', 'cincin' => 'Z^cin/Z^cin',
+        // 常染色体
+        '+flp' => '+/flp', 'flpflp' => 'flp/flp',
+        '+flb' => '+/flb', 'flbflb' => 'flb/flb',
+        'Pi+' => 'Pi/+', 'PiPi' => 'Pi/Pi',
+        '+pi' => '+/pi', 'pipi' => 'pi/pi',
+        '+dil' => '+/dil', 'dildil' => 'dil/dil',
+        // Edged（正規表記 Ed。旧表記 ed も同じ表示にそろえる）
+        'Ed+' => 'Ed/+', '+Ed' => 'Ed/+', 'EdEd' => 'Ed/Ed', '+ed' => 'Ed/+', 'ed+' => 'Ed/+', 'eded' => 'Ed/Ed',
+        '+of' => '+/of', 'ofof' => 'of/of',
+        '+ph' => '+/ph', 'phph' => 'ph/ph',
+    ];
+
+    /** 濃さ欄の値（PHP の resolveDarkGenotype が区別する値）。表にない値は 'none' と同じ扱い。 */
+    private const DARKNESS_VALUES = ['none', 'sf', 'df', 'unknown'];
+
+    /**
+     * 血統書（pedigree.js）が使う遺伝の情報を、すべてここで計算して1つにまとめる。
+     * JS は判定を一切行わず、この表を引くだけにする（SSOT。index.php が PEDIGREE_DATA として注入）。
+     *
+     * - loci:       座位の順序（confidence の配列の並び）
+     * - sexLinked:  伴性座位
+     * - wild:       座位ごとの野生型 {male, female}
+     * - academic:   遺伝子型 → 学術表記（伴性メスのヘミ接合を含む）
+     * - confidence: 色 → {male: [...], female: [...], darkness: {座位: {濃さ欄の値: 確信度}}}
+     *               確信度は phenotypeConfidence() の結果（100 / 50 / 0）
+     */
+    public static function pedigreeData(): array
+    {
+        $loci = array_keys(AgapornisLoci::LOCI);
+        $sexLinked = [];
+        $wild = [];
+        $academic = self::ACADEMIC_NOTATION;
+        foreach (AgapornisLoci::LOCI as $key => $config) {
+            $w = AgapornisLoci::wildAllele($key) ?? '+';
+            $isSL = (bool)($config['sex_linked'] ?? false);
+            if ($isSL) {
+                $sexLinked[] = $key;
+                foreach (array_keys($config['alleles'] ?? []) as $a) {
+                    $a = (string)$a;
+                    $academic[$a . 'W'] = ($a === $w) ? $a . '/W' : 'Z^' . $a . '/W';
+                }
+            }
+            $wild[$key] = ['male' => $w . $w, 'female' => $isSL ? $w . 'W' : $w . $w];
+        }
+
+        $estimator = new self();
+        $confidence = [];
+        foreach (AgapornisLoci::COLOR_DEFINITIONS as $color => $def) {
+            $eye = $def['eye'] ?? 'black';
+            $row = ['darkness' => []];
+            foreach (['male', 'female'] as $sex) {
+                $byLocus = [];
+                foreach ($estimator->estimate($sex, (string)$color, $eye, 'none')['loci'] ?? [] as $l) {
+                    $byLocus[$l['locusKey']] = $l['confidence'];
+                }
+                $row[$sex] = array_map(fn($k) => $byLocus[$k] ?? 0, $loci);
+            }
+            // 濃さ欄で結果が変わる座位（ダーク）は、濃さ欄の値ごとに持つ
+            foreach (self::DARKNESS_VALUES as $dk) {
+                foreach ($estimator->estimate('male', (string)$color, $eye, $dk)['loci'] ?? [] as $l) {
+                    $row['darkness'][$l['locusKey']][$dk] = $l['confidence'];
+                }
+            }
+            foreach ($row['darkness'] as $locus => $vals) {
+                if (count(array_unique($vals)) === 1) unset($row['darkness'][$locus]);   // 濃さ欄で変わらない座位は省く
+            }
+            $row['darkness'] = (object)$row['darkness'];
+            $confidence[$color] = $row;
+        }
+
+        return [
+            'loci' => $loci,
+            'sexLinked' => $sexLinked,
+            'wild' => $wild,
+            'academic' => $academic,
+            'confidence' => $confidence,
+        ];
+    }
+
+    /**
      * 表現型から遺伝子型を推定
      */
 public function estimate(string $sex, string $baseColor, string $eyeColor, string $darkFactor, bool $isJa = true): array

@@ -826,7 +826,7 @@ const BreedingPlanner = {
 
             // cin + ino 両方必要な場合（Lacewing系）
             if (slr.ino && slr.cin) {
-                const rate = RECOMBINATION_RATES['cinnamon-ino'] || 0.03;
+                const rate = RECOMBINATION_RATES['cinnamon-ino'];   // 正本: genetics.php（index.php が注入）
                 if (mPhase.Z_linked.phase === 'cis' || mPhase.Z_linked.phase === 'cis_inferred') {
                     // Cis: 97%が連鎖遺伝
                     baseProb *= (1 - rate);
@@ -838,7 +838,7 @@ const BreedingPlanner = {
 
             // ino + opaline 両方必要な場合
             if (slr.ino && slr.op) {
-                const rate = RECOMBINATION_RATES['ino-opaline'] || 0.30;
+                const rate = RECOMBINATION_RATES['ino-opaline'];    // 正本: genetics.php（index.php が注入）
                 if (mPhase.Z_linked.phase === 'cis' || mPhase.Z_linked.phase === 'cis_inferred') {
                     baseProb *= (1 - rate);
                 } else if (mPhase.Z_linked.phase === 'trans') {

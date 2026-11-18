@@ -96,22 +96,25 @@ genetics.php (SSOT)
     ├─ LOCI (14 locus definitions)
     ├─ COLOR_DEFINITIONS (310+ colors)
     ├─ RECOMBINATION_RATES (linkage rates)
+    ├─ GenotypeEstimator::pedigreeData() (wild types, academic notation, confidence table)
     │
     └─→ index.php → JS constant injection → JS files
 ```
+
+JavaScript holds no copy of a genetic rule. When JS needs the result of a rule, PHP computes a table and `index.php` injects it (e.g. `PEDIGREE_DATA` for the pedigree certificate). The full map, what JS may hold, and the remaining duplication candidates are in [`docs/ssot.md`](docs/ssot.md). `scripts/agent-check` enforces this rule through `.claude/rule-lint.tsv` and `scripts/pedigree-check`.
 
 ### Verification
 
 The mathematical logic of `genetics.php` (genetic calculation core engine) has been verified for computational reliability through cross-referencing with *Principles of Avian Genetics for Aviculture* (full text) using Gemini 3 in a single context window for mathematical validation against genetic theory.
 
-### File List (17 files, 27,968 lines)
+### File List (17 files, 28,002 lines)
 
 | File | Lines | Purpose |
 |------|------:|---------|
-| genetics.php | 5,325 | Genetics calculation engine (SSOT) |
+| genetics.php | 5,423 | Genetics calculation engine (SSOT) |
 | style.css | 3,091 | All styles |
-| debug_test.php | 2,832 | Debug test suite |
-| index.php | 2,311 | Main UI + JS constant injection |
+| debug_test.php | 2,859 | Debug test suite |
+| index.php | 2,313 | Main UI + JS constant injection |
 | birds.js | 2,298 | Bird DB + 72 demo specimens |
 | lang_pathfinder.php | 2,192 | PathFinder i18n (11 languages) |
 | planner.js | 2,042 | Breeding planner + linkage evaluation |
@@ -119,7 +122,7 @@ The mathematical logic of `genetics.php` (genetic calculation core engine) has b
 | family.js | 1,542 | Family tree UI + Auto Populate |
 | lang_guardian.php | 1,165 | Guardian i18n (11 languages) |
 | app.js | 908 | Main application logic |
-| pedigree.js | 655 | Pedigree chart rendering |
+| pedigree.js | 562 | Pedigree chart rendering |
 | guardian.js | 517 | Health assessment engine |
 | breeding.js | 492 | Breeding calculation UI |
 | readme.php | 374 | README page |
@@ -279,7 +282,7 @@ This is the minimum *for this plan*. Shorter routes, such as pairing two express
 
 Wild-type values are built from `LOCI` (`dd`, `vv`, `++`, `+W`). For confidence 50 the result also carries `alternatives` (e.g. `["Pi+","PiPi"]`). The estimator screen shows them as "One of two: Pi+ / PiPi" instead of "?".
 
-The pedigree certificate (`pedigree.js` → `phenotypeConfidence()`) applies the same rule on the JS side, using `COLOR_MASTER` and `LOCI_MASTER`. It agrees with the PHP result for all 8,680 colour × sex × locus combinations, dark included. Red eyes alone no longer confirm INO, because fallow birds are red-eyed too.
+The pedigree certificate does not re-implement this rule. `GenotypeEstimator::pedigreeData()` precomputes the confidence for every colour × sex × locus, plus each darkness value for dark. `index.php` injects the result as `PEDIGREE_DATA`, and `pedigree.js` only looks it up. `scripts/pedigree-check` compares the lookup with `GenotypeEstimator::estimate()` across all colours, both sexes, every locus and all darkness values (43,400 cases). Red eyes alone do not confirm INO, because fallow birds are red-eyed too.
 
 ### In-app README (`readme.php`)
 
@@ -313,14 +316,14 @@ Comprehensive test suite covering all genetic calculations and integrations.
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 125 (PHP 95 + JS 30) |
+| Total Tests | 126 (PHP 96 + JS 30) |
 | Pass Rate | 100% |
 | Test File | `debug_test.php` |
 
 **Test Categories:**
 - PHP Unit tests (50): Core classes, calculations, color definitions
 - PHP Integration tests (33): UI/API compatibility, SSOT integrity, i18n coverage
-- PHP Regression tests (12): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist
+- PHP Regression tests (13): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist, pedigree data built from SSOT
 - JS Tests (30): BreedingValidator, HealthGuardian, BreedingPlanner
 
 Run tests via browser: `debug_test.php?run_tests=1`

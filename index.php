@@ -601,6 +601,8 @@ const UI_GENOTYPE_LOCI = <?= json_encode(AgapornisLoci::UI_GENOTYPE_LOCI) ?>;
 // v7.0: 連鎖遺伝用定数
 const LINKAGE_GROUPS = <?= json_encode(AgapornisLoci::LINKAGE_GROUPS) ?>;
 const RECOMBINATION_RATES = <?= json_encode(AgapornisLoci::RECOMBINATION_RATES) ?>;
+// 血統書用の遺伝情報（座位順・野生型・学術表記・確信度表）。pedigree.js は判定せずこれを引く（SSOT）
+const PEDIGREE_DATA = <?= json_encode(GenotypeEstimator::pedigreeData()) ?>;
 const INDEPENDENT_LOCI = <?= json_encode(AgapornisLoci::INDEPENDENT_LOCI) ?>;
 </script>
 </head>

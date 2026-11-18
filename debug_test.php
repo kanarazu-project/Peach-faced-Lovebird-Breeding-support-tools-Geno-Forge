@@ -2112,6 +2112,33 @@ if ($runTests) {
         return [!$failed, $failed ? 'NG: ' . implode(' / ', $failed) : count($checks) . ' checks OK'];
     });
 
+    // Test 22-13: 血統書用の注入データ（PEDIGREE_DATA）が正本から欠けなく作られている
+    $reg('Pedigree data: built from SSOT (loci order, wild types, academic notation)', function () {
+        $d = GenotypeEstimator::pedigreeData();
+        $missing = [];
+        $walk = function ($v) use (&$walk, &$missing, $d) {
+            if (!is_array($v)) return;
+            if (array_keys($v) === [0, 1] && is_string($v[0]) && is_string($v[1])) {
+                if (!isset($d['academic'][$v[0]])) $missing[] = $v[0];
+                return;
+            }
+            foreach ($v as $c) $walk($c);
+        };
+        $walk(AgapornisLoci::GENOTYPE_OPTIONS);
+        $checks = [
+            'loci = LOCI keys' => $d['loci'] === array_keys(AgapornisLoci::LOCI),
+            'all colours present' => count($d['confidence']) === count(AgapornisLoci::COLOR_DEFINITIONS),
+            'wild ino female +W' => ($d['wild']['ino']['female'] ?? null) === '+W',
+            'wild dark dd' => ($d['wild']['dark']['male'] ?? null) === 'dd',
+            'academic inoW' => ($d['academic']['inoW'] ?? null) === 'Z^ino/W',
+            'academic covers GENOTYPE_OPTIONS' => !$missing,
+            'lutino dark depends on darkness' => (((array)$d['confidence']['lutino']['darkness'])['dark']['sf'] ?? null) === 100
+                && (((array)$d['confidence']['lutino']['darkness'])['dark']['none'] ?? null) === 0,
+        ];
+        $failed = array_keys(array_filter($checks, fn($v) => !$v));
+        return [!$failed, $failed ? 'NG: ' . implode(' / ', $failed) . ($missing ? ' missing=' . implode(',', $missing) : '') : count($checks) . ' checks OK'];
+    });
+
     // Test 22-7: 確信度は表現型から判別できる度合いを反映する
     $reg('GenotypeEstimator: confidence reflects what phenotype can determine', function () use ($locusOf) {
         $est = new GenotypeEstimator();

@@ -6,6 +6,8 @@
  * - 座位定義・色定義は genetics.php → index.php → JavaScript定数 から取得
  * - このファイルはレンダリングロジックのみを担当
  * - ハードコードされた遺伝情報は一切持たない
+ * - 遺伝の判定（確信度・野生型・学術表記）は PEDIGREE_DATA（GenotypeEstimator::pedigreeData()）を引くだけにする
+ *   （規則表 .claude/rule-lint.tsv の ped-geno-literal が、このファイルの遺伝子型リテラルを検査する）
  */
 
 const PedigreeGenerator = {
@@ -18,14 +20,18 @@ const PedigreeGenerator = {
      * 座位一覧を取得（LOCI_MASTER から動的取得）
      */
     getLoci() {
-        if (typeof LOCI_MASTER !== 'undefined') {
-            return Object.keys(LOCI_MASTER);
-        }
-        // フォールバック（LOCI_MASTER未定義時）
-        console.warn('LOCI_MASTER not defined, using fallback');
-        return ['parblue', 'dark', 'violet', 'ino', 'opaline', 'cinnamon', 
-                'fallow_pale', 'fallow_bronze', 'pied_dom', 'pied_rec', 
-                'dilute', 'edged', 'orangeface', 'pale_headed'];
+        const data = this.data();
+        if (data) return data.loci;
+        if (typeof LOCI_MASTER !== 'undefined') return Object.keys(LOCI_MASTER);
+        console.warn('PEDIGREE_DATA / LOCI_MASTER not defined');
+        return [];
+    },
+
+    /**
+     * 血統書用の遺伝情報（index.php が genetics.php から注入）
+     */
+    data() {
+        return (typeof PEDIGREE_DATA !== 'undefined') ? PEDIGREE_DATA : null;
     },
     
     /**
@@ -43,11 +49,12 @@ const PedigreeGenerator = {
      * 座位が伴性遺伝かどうか
      */
     isSexLinked(locusKey) {
+        const data = this.data();
+        if (data) return data.sexLinked.includes(locusKey);
         if (typeof LOCI_MASTER !== 'undefined' && LOCI_MASTER[locusKey]) {
             return LOCI_MASTER[locusKey].sex_linked === true;
         }
-        // フォールバック
-        return ['ino', 'opaline', 'cinnamon'].includes(locusKey);
+        return false;
     },
     
     /**
@@ -75,45 +82,9 @@ const PedigreeGenerator = {
      * 遺伝子型を学術形式に変換
      */
     toAcademicFormat(locusKey, alleles) {
-        if (!alleles) return '+/+';
-        
-        const isSL = this.isSexLinked(locusKey);
-        
-        // 伴性遺伝のヘミ接合（メス）
-        if (alleles.endsWith('W')) {
-            const allele = alleles.replace('W', '');
-            if (allele === '+') return '+/W';
-            return `Z^${allele}/W`;
-        }
-        
-        // ホモ接合チェック
-        const alleleMap = {
-            // Parblue
-            '++': '+/+', '+aq': '+/b^aq', 'aqaq': 'b^aq/b^aq',
-            '+tq': '+/b^tq', 'tqtq': 'b^tq/b^tq', 'tqaq': 'b^tq/b^aq',
-            // Dark
-            'dd': 'd/d', 'Dd': 'D/d', 'DD': 'D/D',
-            // Violet
-            'vv': 'v/v', 'Vv': 'V/v', 'VV': 'V/V',
-            // INO (オス)
-            '+ino': '+/Z^ino', 'inoino': 'Z^ino/Z^ino',
-            '+pld': '+/Z^pld', 'pldpld': 'Z^pld/Z^pld', 'pldino': 'Z^pld/Z^ino',
-            // Opaline (オス)
-            '+op': '+/Z^op', 'opop': 'Z^op/Z^op',
-            // Cinnamon (オス)
-            '+cin': '+/Z^cin', 'cincin': 'Z^cin/Z^cin',
-            // 常染色体劣性
-            '+flp': '+/flp', 'flpflp': 'flp/flp',
-            '+flb': '+/flb', 'flbflb': 'flb/flb',
-            'Pi+': 'Pi/+', 'PiPi': 'Pi/Pi',
-            '+pi': '+/pi', 'pipi': 'pi/pi',
-            '+dil': '+/dil', 'dildil': 'dil/dil',
-            '+ed': '+/ed', 'eded': 'ed/ed',
-            '+of': '+/of', 'ofof': 'of/of',
-            '+ph': '+/ph', 'phph': 'ph/ph',
-        };
-        
-        return alleleMap[alleles] || alleles;
+        const data = this.data();
+        if (!alleles) return data ? (data.academic[data.wild[locusKey]?.male] || '') : '';
+        return (data && data.academic[alleles]) || alleles;
     },
 
     // ========================================
@@ -150,12 +121,9 @@ const PedigreeGenerator = {
      * デフォルトアレル（野生型）
      */
     getDefaultAllele(locus, sex) {
-        if (this.isSexLinked(locus) && sex === 'female') {
-            return '+W';
-        }
-        if (locus === 'dark') return 'dd';
-        if (locus === 'violet') return 'vv';
-        return '++';
+        const wild = this.data()?.wild[locus];
+        if (!wild) return '';
+        return sex === 'female' ? wild.female : wild.male;
     },
 
     /**
@@ -184,88 +152,27 @@ const PedigreeGenerator = {
      * 野生型かどうか判定
      */
     isWildType(locus, alleles) {
-        const wildTypes = ['++', '+W', 'dd', 'vv'];
-        return wildTypes.includes(alleles);
+        const wild = this.data()?.wild[locus];
+        return !!wild && (alleles === wild.male || alleles === wild.female);
     },
 
     /**
-     * 遺伝子型文字列をアレル配列に分解（genetics.php AgapornisLoci::splitGenotype と同じ規則）
-     */
-    splitGenotype(locus, genotype) {
-        const def = (typeof LOCI_MASTER !== 'undefined') ? LOCI_MASTER[locus] : null;
-        const names = def ? Object.keys(def.alleles || {}) : [];
-        if (!names.length || typeof genotype !== 'string') return null;
-        if (locus === 'edged') genotype = genotype.replace(/ed/g, 'Ed');
-        if (genotype.endsWith('W')) {
-            const a = genotype.slice(0, -1);
-            return names.includes(a) ? [a] : null;
-        }
-        for (const a of names) {
-            for (const b of names) {
-                if (a + b === genotype) return [a, b];
-            }
-        }
-        return null;
-    },
-
-    /**
-     * アレルの組が表現型に現れるか（AgapornisLoci::isExpressedAlleles と同じ規則）
-     */
-    isExpressedAlleles(locus, alleles) {
-        const def = LOCI_MASTER[locus] || {};
-        const wild = Object.keys(def.alleles || {}).find(a => def.alleles[a] === 0);
-        const mutant = alleles.filter(a => a !== wild);
-        if (def.type === 'AD' || def.type === 'AID') return mutant.length > 0;
-        return alleles.length > 0 && mutant.length === alleles.length;
-    },
-
-    /**
-     * 表現型だけから遺伝子型をどこまで確定できるか
-     * genetics.php GenotypeEstimator::phenotypeConfidence と同じ規則:
-     *   100 確定 / 50 見た目が同じ2通り（Pi+ と PiPi、パリッドのオスの pldpld と pldino）/ 0 判別不能
+     * 表現型だけから遺伝子型をどこまで確定できるか（100 確定 / 50 見た目が同じ2通り / 0 判別不能）
+     * 判定は genetics.php GenotypeEstimator::phenotypeConfidence() が行い、結果を PEDIGREE_DATA.confidence に持つ。
+     * ここでは色・性別・座位（と濃さ欄）で表を引くだけにする。
      */
     phenotypeConfidence(observed, locus, sex) {
-        const baseColor = observed.baseColor || '';
-        const darkness = String(observed.darkness || '').toLowerCase();
-
-        // ダーク因子（genetics.php AgapornisLoci::resolveDarkGenotype と同じ規則）:
-        // 濃さ欄 sf/df が優先、なし・不明・未入力は色名の定義。INO 系は色名に定義がなく判断できない。
-        if (locus === 'dark') {
-            if (darkness === 'sf' || darkness === 'df') return 100;
-            const def = (typeof COLOR_MASTER !== 'undefined') ? COLOR_MASTER[baseColor] : null;
-            return (def && def.genotype && def.genotype.dark) ? 100 : 0;
+        const data = this.data();
+        const row = data ? data.confidence[observed.baseColor || ''] : null;
+        if (!row) return 0;
+        const byDarkness = row.darkness ? row.darkness[locus] : null;
+        if (byDarkness) {
+            const value = String(observed.darkness || '').toLowerCase();
+            return (value in byDarkness) ? byDarkness[value] : byDarkness.none;
         }
-        // 赤目だけでは INO と確定しない（ファローも赤目）。色名の定義から判定する。
-
-        const colorDef = (typeof COLOR_MASTER !== 'undefined') ? COLOR_MASTER[baseColor] : null;
-        const lociDef = (typeof LOCI_MASTER !== 'undefined') ? LOCI_MASTER[locus] : null;
-        if (!colorDef || !lociDef) return 0;
-
-        const defGeno = colorDef.genotype || {};
-        const isFemale = sex === 'female';
-        const isSexLinked = !!lociDef.sex_linked;
-        const wild = Object.keys(lociDef.alleles || {}).find(a => lociDef.alleles[a] === 0) || '+';
-        let value = defGeno[locus] || (isSexLinked && isFemale ? wild + 'W' : wild + wild);
-        if (isSexLinked && isFemale) {
-            // 色定義はオス表記（inoino など）なので、メスはヘミ接合（inoW）に読み替える
-            const homo = this.splitGenotype(locus, value);
-            if (homo && homo.length === 2 && homo[0] === homo[1]) value = homo[0] + 'W';
-        }
-        const alleles = this.splitGenotype(locus, value);
-        if (!alleles) return 0;
-        const type = lociDef.type || 'AR';
-
-        if (this.isExpressedAlleles(locus, alleles)) {
-            if (type === 'AD') return 50;
-            if (locus === 'ino' && !isFemale && value === 'pldpld') return 50;
-            return 100;
-        }
-        // INO は他の座位の見た目を覆い隠す
-        const inoMasked = ['inoino', 'inoW'].includes(defGeno.ino) && !['ino', 'parblue', 'dark'].includes(locus);
-        if (inoMasked) return 0;
-        if (type === 'AD' || type === 'AID') return 100;   // 優性が出ていない → 野生型で確定
-        if (isSexLinked && isFemale) return 100;             // メスは隠れキャリアがいない
-        return 0;                                            // 劣性のスプリットは判別できない
+        const idx = data.loci.indexOf(locus);
+        const list = sex === 'female' ? row.female : row.male;
+        return (idx >= 0 && list) ? list[idx] : 0;
     },
 
     /**
