@@ -617,6 +617,8 @@ const RECOMBINATION_RATES = <?= json_encode(AgapornisLoci::RECOMBINATION_RATES) 
 const PEDIGREE_DATA = <?= json_encode(GenotypeEstimator::pedigreeData()) ?>;
 // 遺伝の事実の表（座位ごとの遺伝子型・色ごとの遺伝子型・繁殖計画の目標など）。JS は genodata.js 経由でこれを引く（SSOT）
 const GENOTYPE_DATA = <?= json_encode(AgapornisLoci::genotypeData()) ?>;
+// 座位ごとの交配表（GeneticsCalculator が計算）。繁殖計画の確率はこれを引く（SSOT）
+const CROSS_TABLE = <?= json_encode(GeneticsCalculator::crossTable()) ?>;
 const INDEPENDENT_LOCI = <?= json_encode(AgapornisLoci::INDEPENDENT_LOCI) ?>;
 </script>
 </head>
@@ -1894,7 +1896,6 @@ $mPh = genotypeInput('m_ph', 'pale_headed', 'female');
     <script src="genodata.js?v=<?= time() ?>"></script>
     <script src="guardian.js?v=<?= time() ?>"></script>
     <script src="birds.js?v=<?= time() ?>"></script>
-    <script src="breeding.js?v=<?= time() ?>"></script>
     <script src="pedigree.js?v=<?= time() ?>"></script>
     <script src="planner.js?v=<?= time() ?>"></script>
 <script>

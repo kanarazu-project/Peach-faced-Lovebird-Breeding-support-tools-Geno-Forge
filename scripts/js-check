@@ -4,12 +4,30 @@
 #   2. guardian.js _getINOTypeName: パーブルーごとの INO 色が GENOTYPE_DATA.inoTypes と一致する
 #   3. planner.js  TARGET_REQUIREMENTS が GENOTYPE_DATA.targets そのものであり、isCompatibleSplit が ino と pld を区別する
 #   4. genodata.js 全座位の全表記で、canonical / isWild / wildGenotype が PHP の表と一致する
+#   6. birds.js  composeColorName: 定義に無い組み合わせの色名が PHP の generateColorName と一致する（日本語・英語）
+#   5. planner.js  calculateTargetProbability が、色の定義どおりの親の交配で PHP の calculateOffspring と同じ確率を返す
 root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
 command -v php >/dev/null 2>&1 || { echo "NG   js-check: php が無い"; exit 1; }
 command -v node >/dev/null 2>&1 || { echo "NG   js-check: node が無い"; exit 1; }
 tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
 php -r 'require "genetics.php"; echo json_encode(["COLOR_MASTER" => AgapornisLoci::COLOR_DEFINITIONS, "LOCI_MASTER" => AgapornisLoci::LOCI,
-  "GENOTYPE_DATA" => AgapornisLoci::genotypeData(), "RECOMBINATION_RATES" => AgapornisLoci::RECOMBINATION_RATES]);' > "$tmp" \
+  "GENOTYPE_DATA" => AgapornisLoci::genotypeData(), "RECOMBINATION_RATES" => AgapornisLoci::RECOMBINATION_RATES,
+  "CROSS_TABLE" => GeneticsCalculator::crossTable(), "PROB_CASES" => array_map(function ($c) {
+    [$target, $mc, $fc] = $c; $in = ["no_filter" => 1]; $by = AgapornisLoci::genotypeData()["byColor"];
+    foreach (["f" => [$mc, "male"], "m" => [$fc, "female"]] as $pre => [$color, $sex])
+      foreach ($by[$color][$sex] as $locus => $g) $in[$pre . "_" . GeneticsCalculator::LOCUS_FIELDS[$locus]] = $g;
+    $p = 0; foreach ((new GeneticsCalculator())->calculateOffspring($in)["phenotype"] as $r) if ($r["colorKey"] === $target) $p += $r["probability"];
+    return [$target, $mc, $fc, $p];
+  }, [["seagreen", "turquoise", "aqua"], ["aqua", "seagreen", "seagreen"], ["green", "seagreen", "seagreen"], ["lutino", "lutino", "green"],
+      ["lutino", "green", "lutino"], ["darkgreen", "olive", "green"], ["darkgreen", "darkgreen", "darkgreen"], ["creamino", "creamino", "seagreen"],
+      ["opaline_green", "opaline_green", "green"], ["cinnamon_green", "green", "cinnamon_green"]]),
+  "NAME_CASES" => (function () {
+    mt_srand(11); $cases = [["pied_dom" => "+Pi", "edged" => "eded"], ["parblue" => "aq+", "violet" => "vV", "orangeface" => "ofof"]];
+    for ($k = 0; $k < 3000; $k++) { $sex = $k % 2 ? "male" : "female"; $g = [];
+      foreach (array_keys(AgapornisLoci::LOCI) as $l) { $c = AgapornisLoci::canonicalGenotypes($l)[$sex]; if (mt_rand(0, 2)) $g[$l] = $c[mt_rand(0, count($c) - 1)]; }
+      $cases[] = $g; }
+    return array_map(fn($g) => [$g, AgapornisLoci::generateColorName($g)], $cases);
+  })()]);' > "$tmp" \
   || { echo "NG   js-check: PHP 側の出力に失敗"; exit 1; }
 exec node - "$tmp" "$root" <<'JS'
 const fs = require('fs'), vm = require('vm');
@@ -29,6 +47,15 @@ for (const [pb, color] of D.inoTypes) check(ctx.$H._getINOTypeName({ parblue: pb
 check(ctx.$P.TARGET_REQUIREMENTS === D.targets, 'planner.TARGET_REQUIREMENTS is not GENOTYPE_DATA.targets');
 check(ctx.$P.isCompatibleSplit('+pld', ['pldpld', 'pldW'], 'ino') === true, 'planner.isCompatibleSplit +pld vs pallid');
 check(ctx.$P.isCompatibleSplit('+ino', ['pldpld', 'pldW'], 'ino') === false, 'planner.isCompatibleSplit +ino vs pallid');
+for (const [target, mc, fc, expected] of consts.PROB_CASES) {
+  const bird = (c, sex) => ({ sex, genotype: ctx.$G.colorGenotype(c, sex) });
+  const got = ctx.$P.calculateTargetProbability(bird(mc, 'male'), bird(fc, 'female'), D.targets[target]);
+  check(Math.abs(got - expected) < 1e-9, `planner.calculateTargetProbability ${target} from ${mc} x ${fc}: ${got} (PHP ${expected})`);
+}
+for (const [geno, expected] of consts.NAME_CASES) for (const lang of ['ja', 'en']) {
+  const got = ctx.$B.composeColorName(geno, lang);
+  check(got === expected[lang], `birds.composeColorName ${JSON.stringify(geno)} ${lang}: ${got} (PHP ${expected[lang]})`);
+}
 for (const [locus, l] of Object.entries(D.loci)) {
   check(ctx.$G.wildGenotype(locus, 'female') === l.wild.female, `GenoData.wildGenotype ${locus}`);
   for (const [g, info] of Object.entries(l.genotypes)) {

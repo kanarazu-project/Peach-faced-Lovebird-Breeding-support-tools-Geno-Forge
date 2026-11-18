@@ -359,55 +359,29 @@ const BreedingPlanner = {
         return score;
     },
 
+    /**
+     * 子が目標の色になる確率。座位ごとの確率は CROSS_TABLE（PHP の GeneticsCalculator が計算）から引き、
+     * 雌雄それぞれで座位の確率を掛け合わせて平均する。連鎖（dark–parblue、Z 上の cin–ino–op）の相は
+     * 個体の記録から決まらないため座位を独立として扱う（docs/ssot.md 4 を参照）。
+     */
     calculateTargetProbability(male, female, target) {
-        let prob = 1.0;
         const mGeno = male.genotype || {}, fGeno = female.genotype || {};
-
-        // 常染色体遺伝子
-        for (const [locus, vals] of Object.entries(target.required)) {
-            const mv = GenoData.canonical(locus, mGeno[locus] || GenoData.wildGenotype(locus, 'male'));
-            const fv = GenoData.canonical(locus, fGeno[locus] || GenoData.wildGenotype(locus, 'female'));
-            if (vals.includes(mv) && vals.includes(fv)) prob *= 1.0;
-            else if (vals.includes(mv) || vals.includes(fv)) prob *= 0.5;
-            else if (!GenoData.isWild(locus, mv) && !GenoData.isWild(locus, fv)) prob *= 0.25;
-            else prob *= 0;
-        }
-
-        // v7.3: 伴性遺伝子 - Z_linked形式対応
-        for (const [locus, vals] of Object.entries(target.slr)) {
-            const mv = this.getSLRGenotypeFromZLinked(mGeno, locus, 'male');
-            const fv = this.getSLRGenotypeFromZLinked(fGeno, locus, 'female');
-
-            // 伴性遺伝の確率計算:
-            // オス発現(ホモ) × メス発現(ヘミ) → 100% 子は発現/スプリット
-            // オススプリット × メス発現 → 50% オス発現, 50% メス発現
-            // オススプリット × メス野生 → 50% メス発現, 25% オススプリット
-            if (vals.includes(mv) && vals.includes(fv)) {
-                // 両方発現: 高確率
-                prob *= 1.0;
-            } else if (vals.includes(fv)) {
-                // メスのみ発現
-                if (!GenoData.isWild(this._slrLocus(locus), mv)) {
-                    // オスがスプリット
-                    prob *= 0.5;
-                } else {
-                    // オス野生型: 子オスはスプリット、メスは発現しない
-                    prob *= 0;
-                }
-            } else if (vals.includes(mv)) {
-                // オスのみ発現（ホモ）
-                prob *= 0.5;  // 娘は発現（ヘミ接合）
-            } else if (!GenoData.isWild(this._slrLocus(locus), mv)) {
-                // オスがスプリット
-                prob *= 0.25;  // 娘の半分が発現
-            } else {
-                // 両方野生型
-                prob *= 0;
+        const bySex = {};
+        for (const sex of ['male', 'female']) {
+            let p = 1;
+            for (const [locus, vals] of Object.entries(target.required)) {
+                p *= GenoData.crossProbability(locus, mGeno[locus], fGeno[locus], vals, sex);
             }
+            for (const [slrKey, vals] of Object.entries(target.slr)) {
+                p *= GenoData.crossProbability(this._slrLocus(slrKey),
+                    this.getSLRGenotypeFromZLinked(mGeno, slrKey, 'male'),
+                    this.getSLRGenotypeFromZLinked(fGeno, slrKey, 'female'), vals, sex);
+            }
+            bySex[sex] = p;
         }
-        return prob;
+        return (bySex.male + bySex.female) / 2;
     },
-    
+
     // v7.0: 翻訳対応
     generateRoadmap(topPairing, target, targetKey, missingGenes) {
         if (!topPairing) return [{ generation: 0, action: this._t('bp_no_breedable_pair', 'No breedable pairs available'), goal: this._t('bp_introduce_healthy', 'Introduce birds with low health risk') }];
@@ -1000,14 +974,16 @@ const BreedingPlanner = {
         for (const m of gap.missing) {
             if (m.type === 'autosomal') {
                 if (m.status === 'heterozygous_only') {
-                    // Dd × Dd → DD (25%)
+                    // 保因 × 保因 → 目標の遺伝子型（確率は CROSS_TABLE）
+                    const carrier = GenoData.carrier(m.locus, m.required[0]);
                     goals.push({
                         locus: m.locus,
                         targetValue: m.required[0],
+                        required: m.required,
                         description: this._tp('bp_fix_gene', { gene: m.locus.toUpperCase() },
                             `Fix ${m.locus.toUpperCase()} (homozygous)`),
                         strategy: 'hetero_x_hetero',
-                        probability: 0.25,
+                        probability: GenoData.crossProbability(m.locus, carrier, carrier, m.required),
                         generationOffset: 1
                     });
                 } else if (m.status === 'absent') {
@@ -1025,14 +1001,18 @@ const BreedingPlanner = {
                 }
             } else if (m.type === 'slr') {
                 if (m.status === 'split_only') {
-                    // スプリット♂ × 野生型♀ → 50%発現♀
+                    // スプリット♂ × 野生型♀ → 発現♀（確率は CROSS_TABLE）
+                    const slrLocus = this._slrLocus(m.locus);
                     goals.push({
                         locus: m.locus,
                         targetValue: m.required[0],
+                        required: m.required,
                         description: this._tp('bp_express_slr', { gene: m.locus.toUpperCase() },
                             `Express ${m.locus.toUpperCase()} in female`),
                         strategy: 'split_male_x_wild_female',
-                        probability: 0.5,
+                        probability: GenoData.crossProbability(slrLocus,
+                            GenoData.carrier(slrLocus, m.required[0]), GenoData.wildGenotype(slrLocus, 'female'),
+                            m.required, 'female'),
                         generationOffset: 1
                     });
                 } else if (m.status === 'absent') {
@@ -1149,12 +1129,14 @@ const BreedingPlanner = {
                         ic = BreedingValidator.calcInbreedingCoefficient(m, f);
                     }
                     if (ic < this.INBREEDING_THRESHOLD) {
+                        const prob = GenoData.crossProbability(goal.locus, (m.genotype || {})[goal.locus],
+                            (f.genotype || {})[goal.locus], goal.required || [goal.targetValue]);
                         pairings.push({
                             male: m,
                             female: f,
-                            probability: 0.25,
+                            probability: prob,
                             inbreedingCoef: ic,
-                            recommendation: `${m.name} × ${f.name} → 25% ${goal.locus.toUpperCase()}`
+                            recommendation: `${m.name} × ${f.name} → ${(prob * 100).toFixed(1)}% ${goal.locus.toUpperCase()}`
                         });
                     }
                 });
@@ -1176,12 +1158,16 @@ const BreedingPlanner = {
                         ic = BreedingValidator.calcInbreedingCoefficient(m, f);
                     }
                     if (ic < this.INBREEDING_THRESHOLD) {
+                        const prob = GenoData.crossProbability(this._slrLocus(goal.locus),
+                            this.getSLRGenotypeFromZLinked(m.genotype || {}, goal.locus, 'male'),
+                            this.getSLRGenotypeFromZLinked(f.genotype || {}, goal.locus, 'female'),
+                            goal.required || requiredVals, 'female');
                         pairings.push({
                             male: m,
                             female: f,
-                            probability: 0.5,
+                            probability: prob,
                             inbreedingCoef: ic,
-                            recommendation: `${m.name} (split) × ${f.name} → 50% ${goal.locus.toUpperCase()} ♀`
+                            recommendation: `${m.name} (split) × ${f.name} → ${(prob * 100).toFixed(1)}% ${goal.locus.toUpperCase()} ♀`
                         });
                     }
                 });

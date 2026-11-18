@@ -2159,6 +2159,29 @@ if ($runTests) {
         return [!$failed, $failed ? 'NG: ' . implode(' / ', $failed) : count($checks) . ' checks OK'];
     });
 
+    // Test 22-15: 繁殖計画が引く交配表（CROSS_TABLE）が交配計算から欠けなく作られている
+    $reg('Cross table: every locus pair from GeneticsCalculator, per-sex totals 1, canonical keys', function () {
+        $t = GeneticsCalculator::crossTable();
+        $bad = [];
+        foreach (array_keys(GeneticsCalculator::LOCUS_FIELDS) as $locus) {
+            $g = AgapornisLoci::canonicalGenotypes($locus);
+            foreach ($g['male'] as $m) foreach ($g['female'] as $f) {
+                foreach (['male', 'female'] as $sex) {
+                    $dist = $t[$locus][$m][$f][$sex] ?? null;
+                    if ($dist === null || abs(array_sum($dist) - 1) > 1e-6 || array_diff(array_keys($dist), $g[$sex])) $bad[] = "$locus $m x $f $sex";
+                }
+            }
+        }
+        $known = [
+            'tqtq x aqaq -> tqaq 100%' => abs(($t['parblue']['tqtq']['aqaq']['male']['tqaq'] ?? 0) - 1) < 1e-9,
+            '+ino x +W -> inoW female 50%' => abs(($t['ino']['+ino']['+W']['female']['inoW'] ?? 0) - 0.5) < 1e-9,
+            '+ino x +W -> no inoino male' => !isset($t['ino']['+ino']['+W']['male']['inoino']),
+            'Dd x Dd -> DD 25%' => abs(($t['dark']['Dd']['Dd']['female']['DD'] ?? 0) - 0.25) < 1e-9,
+        ];
+        $failed = array_merge($bad, array_keys(array_filter($known, fn($v) => !$v)));
+        return [!$failed, $failed ? 'NG: ' . implode(' / ', array_slice($failed, 0, 5)) : count($known) . ' known values + all pairs OK'];
+    });
+
     // Test 22-7: 確信度は表現型から判別できる度合いを反映する
     $reg('GenotypeEstimator: confidence reflects what phenotype can determine', function () use ($locusOf) {
         $est = new GenotypeEstimator();
@@ -2490,6 +2513,7 @@ if ($runTests) {
     const COLOR_MASTER = <?= json_encode(AgapornisLoci::COLOR_DEFINITIONS) ?>;
     const RECOMBINATION_RATES = <?= json_encode(AgapornisLoci::RECOMBINATION_RATES) ?>;
     const GENOTYPE_DATA = <?= json_encode(AgapornisLoci::genotypeData()) ?>;
+    const CROSS_TABLE = <?= json_encode(GeneticsCalculator::crossTable()) ?>;
     </script>
     <script src="genodata.js"></script>
     <!-- Load JS modules for testing -->

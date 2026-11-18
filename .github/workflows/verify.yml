@@ -1,4 +1,4 @@
-# 全体の検査（scripts/agent-check）: Skill の照合・規則表・PHP テスト・血統書の PHP/JS 一致検査。
+# 全体の検査（scripts/agent-check）: Skill の照合・規則表・PHP テスト・PHP/JS 一致検査・ブラウザでの JS テスト。
 # pre-commit は変更ファイルだけを見るので、全量はここで必ず受ける。
 name: verify
 
@@ -14,11 +14,19 @@ jobs:
   agent-check:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Tool versions
         run: |
           php -v
           node -v
           python3 --version
+      # scripts/browser-test 用。版はローカル環境の Playwright と揃える
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-audit --no-fund playwright@1.63.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: scripts/agent-check
+        env:
+          BROWSER_TEST_REQUIRED: "1"
         run: bash scripts/agent-check

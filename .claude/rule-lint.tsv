@@ -8,3 +8,4 @@ js-rate-fallback	forbid	*.js	RECOMBINATION_RATES\[[^\]]+\]\s*\|\|\s*[0-9.]+
 inject-recombination	require	index.php	const RECOMBINATION_RATES = <\?= json_encode\(AgapornisLoci::RECOMBINATION_RATES\) \?>
 inject-pedigree-data	require	index.php	const PEDIGREE_DATA = <\?= json_encode\(GenotypeEstimator::pedigreeData\(\)\) \?>
 inject-genotype-data	require	index.php	const GENOTYPE_DATA = <\?= json_encode\(AgapornisLoci::genotypeData\(\)\) \?>
+inject-cross-table	require	index.php	const CROSS_TABLE = <\?= json_encode\(GeneticsCalculator::crossTable\(\)\) \?>

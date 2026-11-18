@@ -1834,28 +1834,34 @@ const BirdDB = {
             .map(locus => { const i = GenoData.info(locus, geno[locus]); return i && i.phenoForm ? `${locus}=${i.phenoForm}` : null; })
             .filter(Boolean).join(';');
         if (rules.bySignature[signature]) return this.getColorLabel(rules.bySignature[signature]);
-        // 2. 定義に無い組み合わせ: 部品から色キーを組み立てる
-        // 基本色を持たないパーブルー（スプリットなど）は野生型の系列として扱う
-        const raw = GenoData.canonical(rules.parblueLocus, geno[rules.parblueLocus]);
-        const parblue = rules.baseByParblue[raw] ? raw : rules.defaultParblue;
-        let baseKey = rules.baseByParblue[parblue];
-        const keyParts = [];
-        for (const step of rules.steps) {
-            const g = GenoData.canonical(step.locus, geno[step.locus]);
-            if (!step.genotypes.includes(g)) continue;
-            if (step.replaceBase) {
-                keyParts.push(step.replaceBase[parblue]);
-                baseKey = '';
-            } else if (step.modifyBase) {
-                if (baseKey) baseKey = (step.modifyBase[parblue] || {})[g] || baseKey;
-            } else {
-                keyParts.push(step.part);
-            }
-        }
+        // 2. 定義に無い組み合わせ: PHP の generateColorName と同じ表（GENOTYPE_DATA.colorName）で名前を作る
+        return this.composeColorName(geno, (typeof LANG !== 'undefined' && LANG === 'ja') ? 'ja' : 'en');
+    },
 
-        // キーを構築してkeyToLabelで変換
-        const colorKey = baseKey ? [...keyParts, baseKey].join('_') : keyParts.join('_');
-        return this.getColorLabel(colorKey);
+    /**
+     * 定義に無い組み合わせの色名（genetics.php の AgapornisLoci::generateColorName と同じ規則・同じ表）
+     * @param {Object} geno - 座位 → 遺伝子型
+     * @param {string} lang - 'ja'（部品を詰めて並べる）か 'en'（空白で区切る）
+     */
+    composeColorName(geno, lang = 'ja') {
+        const r = (GenoData.data() || {}).colorName;
+        if (!r) return '';
+        const g = locus => GenoData.canonical(locus, geno[locus] || GenoData.wildGenotype(locus, 'male'));
+        const parblue = g('parblue');
+        const isParblue = parblue !== r.wildParblue;
+        const hasIno = r.inoGenotypes.includes(g('ino'));
+        const names = [];
+        for (const part of r.parts) {
+            if (!geno[part.locus] || !part.genotypes.includes(g(part.locus))) continue;
+            if (part.noIno && hasIno) continue;
+            if (part.parblueOnly && !isParblue) continue;
+            names.push(((isParblue && part.parblueName) ? part.parblueName : part.name)[lang]);
+        }
+        const base = hasIno
+            ? (r.inoNames[parblue] || r.inoDefault)
+            : ((r.baseNames[parblue] || {})[g('dark')] || r.baseDefault);
+        names.push(base[lang]);
+        return names.join(lang === 'ja' ? '' : ' ');
     },
 
     getColorLabel(colorKey, lang = 'ja') {

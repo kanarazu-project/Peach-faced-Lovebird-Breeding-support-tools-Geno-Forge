@@ -288,11 +288,30 @@ final class AgapornisLoci
     /** 繁殖計画（planner.js）が伴性座位に使う短いキー → 座位 */
     public const PLANNER_SLR_KEYS = ['ino' => 'ino', 'cin' => 'cinnamon', 'op' => 'opaline'];
 
-    /** 色キーを組み立てるときの部品（planner.js 由来の命名。座位 → 部品名。この順に並べる） */
-    private const COLOR_KEY_PARTS = [
-        'opaline' => 'opaline', 'cinnamon' => 'cinnamon', 'fallow_pale' => 'fallow',
-        'pied_rec' => 'pied', 'violet' => 'violet', 'dilute' => 'dilute', 'edged' => 'edged',
+    /**
+     * 定義に無い組み合わせの色名の部品（この順に並べ、最後に基本色の名前を置く）。
+     * allele の変異アレルを、mode=all なら全アレルが、mode=any なら1つでも持つと付く。
+     * noIno: INO の発現時は付けない。parblueOnly: パーブルー系列だけ。parblueName: パーブルー系列での名前。eye: 目の色。
+     * generateColorName と birds.js（GENOTYPE_DATA.colorName 経由）が同じこの表で名前を作る。
+     */
+    private const COLOR_NAME_PARTS = [
+        ['locus' => 'opaline', 'allele' => 'op', 'mode' => 'all', 'ja' => 'オパーリン', 'en' => 'Opaline'],
+        ['locus' => 'cinnamon', 'allele' => 'cin', 'mode' => 'all', 'noIno' => true, 'ja' => 'シナモン', 'en' => 'Cinnamon'],
+        ['locus' => 'ino', 'allele' => 'pld', 'mode' => 'all', 'noIno' => true, 'ja' => 'パリッド', 'en' => 'Pallid'],
+        ['locus' => 'fallow_pale', 'allele' => 'flp', 'mode' => 'all', 'noIno' => true, 'eye' => 'red', 'ja' => 'ペールファロー', 'en' => 'Pale Fallow'],
+        ['locus' => 'fallow_bronze', 'allele' => 'flb', 'mode' => 'all', 'noIno' => true, 'eye' => 'red', 'ja' => 'ブロンズファロー', 'en' => 'Bronze Fallow'],
+        ['locus' => 'dilute', 'allele' => 'dil', 'mode' => 'all', 'noIno' => true, 'ja' => 'ダイリュート', 'en' => 'Dilute'],
+        ['locus' => 'edged', 'allele' => 'Ed', 'mode' => 'all', 'noIno' => true, 'ja' => 'エッジド', 'en' => 'Edged'],
+        ['locus' => 'violet', 'allele' => 'V', 'mode' => 'any', 'parblueOnly' => true, 'ja' => 'バイオレット', 'en' => 'Violet'],
+        ['locus' => 'pied_dom', 'allele' => 'Pi', 'mode' => 'any', 'ja' => 'ドミナントパイド', 'en' => 'Dominant Pied'],
+        ['locus' => 'pied_rec', 'allele' => 'pi', 'mode' => 'all', 'ja' => 'レセッシブパイド', 'en' => 'Recessive Pied'],
+        ['locus' => 'orangeface', 'allele' => 'of', 'mode' => 'all', 'ja' => 'オレンジフェイス', 'en' => 'Orangefaced',
+         'parblueName' => ['ja' => 'イエローフェイス', 'en' => 'Yellowfaced']],
+        ['locus' => 'pale_headed', 'allele' => 'ph', 'mode' => 'all', 'ja' => 'ペールヘッド', 'en' => 'Pale Headed'],
     ];
+
+    /** 色名の基本色を決める INO の発現（ino アレルだけの遺伝子型） */
+    private const COLOR_NAME_INO_ALLELE = 'ino';
 
     /** INO 型の表示の優先順（健康評価の文言で、両親のうちより白い系統を示す） */
     private const INO_TYPE_PRIORITY = ['pure_white', 'creamino', 'creamino_seagreen', 'lutino'];
@@ -473,16 +492,45 @@ final class AgapornisLoci
             $pb = array_search($color, $inoByParblue, true);
             if ($pb !== false) $inoTypes[] = [$pb, $color];
         }
-        $expressedWith = function (string $l, callable $pred) use ($loci): array {
-            return array_values(array_keys(array_filter($loci[$l]['genotypes'], fn($i, $g) => $i['canonical'] === $g && $i['expressed'] && $pred($i), ARRAY_FILTER_USE_BOTH)));
+        // 定義に無い組み合わせの色名の規則（部品は COLOR_NAME_PARTS、基本色の名前は COLOR_DEFINITIONS から）
+        $withAllele = function (string $l, string $allele, string $mode) use ($loci): array {
+            return array_values(array_keys(array_filter($loci[$l]['genotypes'], function ($i, $g) use ($allele, $mode) {
+                if ($i['canonical'] !== $g) return false;
+                $hits = count(array_filter($i['alleles'], fn($a) => $a === $allele));
+                return $mode === 'any' ? $hits > 0 : $hits === count($i['alleles']);
+            }, ARRAY_FILTER_USE_BOTH)));
         };
-        $steps = [
-            ['locus' => 'ino', 'genotypes' => $expressedWith('ino', fn($i) => !in_array('pld', $i['mutant'], true)), 'replaceBase' => $inoByParblue],
-            ['locus' => 'ino', 'genotypes' => $expressedWith('ino', fn($i) => in_array('pld', $i['mutant'], true)), 'part' => 'pallid'],
+        $nameOf = fn(string $color) => ['ja' => self::COLOR_DEFINITIONS[$color]['ja'], 'en' => self::COLOR_DEFINITIONS[$color]['en']];
+        $parts = [];
+        foreach (self::COLOR_NAME_PARTS as $part) {
+            $parts[] = [
+                'locus' => $part['locus'],
+                'genotypes' => $withAllele($part['locus'], $part['allele'], $part['mode']),
+                'noIno' => $part['noIno'] ?? false,
+                'parblueOnly' => $part['parblueOnly'] ?? false,
+                'eye' => $part['eye'] ?? null,
+                'name' => ['ja' => $part['ja'], 'en' => $part['en']],
+                'parblueName' => $part['parblueName'] ?? null,
+            ];
+        }
+        $baseNames = [];
+        foreach ($baseByParblue as $pb => $color) {
+            $baseNames[$pb][self::wildGenotype('dark')] = $nameOf($color);
+            foreach ($darkByParblue[$pb] ?? [] as $dg => $dc) $baseNames[$pb][$dg] = $nameOf($dc);
+        }
+        $wildParblue = self::wildGenotype('parblue');
+        $colorName = [
+            'parts' => $parts,
+            'inoGenotypes' => $withAllele('ino', self::COLOR_NAME_INO_ALLELE, 'all'),
+            'inoNames' => array_map($nameOf, $inoByParblue),
+            'inoDefault' => $nameOf($inoByParblue[$wildParblue]),
+            'baseNames' => $baseNames,
+            'baseDefault' => $nameOf($baseByParblue[$wildParblue]),
+            'wildParblue' => $wildParblue,
+            'wildDark' => self::wildGenotype('dark'),
+            'eyeDefault' => 'black',
+            'eyeIno' => 'red',
         ];
-        foreach (['opaline', 'cinnamon'] as $l) $steps[] = ['locus' => $l, 'genotypes' => $expressedWith($l, fn($i) => true), 'part' => self::COLOR_KEY_PARTS[$l]];
-        $steps[] = ['locus' => 'dark', 'genotypes' => $expressedWith('dark', fn($i) => true), 'modifyBase' => $darkByParblue];
-        foreach (['fallow_pale', 'pied_rec', 'violet', 'dilute', 'edged'] as $l) $steps[] = ['locus' => $l, 'genotypes' => $expressedWith($l, fn($i) => true), 'part' => self::COLOR_KEY_PARTS[$l]];
 
         $darknessByDark = [self::wildGenotype('dark') => 'none'] + array_flip(self::DARKNESS_TO_DARK);
 
@@ -500,12 +548,9 @@ final class AgapornisLoci
             'plannerSlrKeys' => self::PLANNER_SLR_KEYS,
             'inoTypes' => $inoTypes,
             'colorKey' => [
-                'parblueLocus' => 'parblue',
-                'baseByParblue' => $baseByParblue,
-                'defaultParblue' => self::wildGenotype('parblue'),
-                'steps' => $steps,
                 'bySignature' => $colorBySignature,
             ],
+            'colorName' => $colorName,
             'darknessByDark' => $darknessByDark,
         ];
     }
@@ -1243,102 +1288,31 @@ final class AgapornisLoci
      */
     public static function generateColorName(array $genotype, bool $isJa = true): array
     {
-        $parts_ja = [];
-        $parts_en = [];
-        $eye = 'black';
-        
-        $hasIno = isset($genotype['ino']) && in_array($genotype['ino'], ['inoino', 'inoW']);
-        $parblue = $genotype['parblue'] ?? '++';
-        $isParblue = $parblue !== '++';
-        $dark = $genotype['dark'] ?? 'dd';
-        
-        if (isset($genotype['opaline']) && in_array($genotype['opaline'], ['opop', 'opW'])) {
-            $parts_ja[] = 'オパーリン';
-            $parts_en[] = 'Opaline';
+        // 規則は genotypeData()['colorName']（COLOR_NAME_PARTS と COLOR_DEFINITIONS から導く）。birds.js も同じ表で名前を作る
+        $r = self::genotypeData()['colorName'];
+        $g = fn(string $l) => self::canonicalGenotype($l, (string)($genotype[$l] ?? self::wildGenotype($l)));
+        $parblue = $g('parblue');
+        $isParblue = $parblue !== $r['wildParblue'];
+        $hasIno = in_array($g('ino'), $r['inoGenotypes'], true);
+        $parts_ja = []; $parts_en = []; $eye = $r['eyeDefault'];
+        foreach ($r['parts'] as $part) {
+            if (!isset($genotype[$part['locus']]) || !in_array($g($part['locus']), $part['genotypes'], true)) continue;
+            if ($part['noIno'] && $hasIno) continue;
+            if ($part['parblueOnly'] && !$isParblue) continue;
+            $name = ($isParblue && $part['parblueName']) ? $part['parblueName'] : $part['name'];
+            $parts_ja[] = $name['ja'];
+            $parts_en[] = $name['en'];
+            if ($part['eye']) $eye = $part['eye'];
         }
-        if (!$hasIno && isset($genotype['cinnamon']) && in_array($genotype['cinnamon'], ['cincin', 'cinW'])) {
-            $parts_ja[] = 'シナモン';
-            $parts_en[] = 'Cinnamon';
-        }
-        if (!$hasIno && isset($genotype['ino']) && in_array($genotype['ino'], ['pldpld', 'pldW'])) {
-            $parts_ja[] = 'パリッド';
-            $parts_en[] = 'Pallid';
-        }
-        if (!$hasIno && isset($genotype['fallow_pale']) && $genotype['fallow_pale'] === 'flpflp') {
-            $parts_ja[] = 'ペールファロー';
-            $parts_en[] = 'Pale Fallow';
-            $eye = 'red';
-        }
-        if (!$hasIno && isset($genotype['fallow_bronze']) && $genotype['fallow_bronze'] === 'flbflb') {
-            $parts_ja[] = 'ブロンズファロー';
-            $parts_en[] = 'Bronze Fallow';
-            $eye = 'red';
-        }
-        if (!$hasIno && isset($genotype['dilute']) && $genotype['dilute'] === 'dildil') {
-            $parts_ja[] = 'ダイリュート';
-            $parts_en[] = 'Dilute';
-        }
-        if (!$hasIno && isset($genotype['edged']) && in_array($genotype['edged'], ['eded', 'EdEd'])) {
-            $parts_ja[] = 'エッジド';
-            $parts_en[] = 'Edged';
-        }
-        if ($isParblue && isset($genotype['violet']) && in_array($genotype['violet'], ['Vv', 'VV'])) {
-            $parts_ja[] = 'バイオレット';
-            $parts_en[] = 'Violet';
-        }
-        if (isset($genotype['pied_dom']) && in_array($genotype['pied_dom'], ['Pi+', 'PiPi'])) {
-            $parts_ja[] = 'ドミナントパイド';
-            $parts_en[] = 'Dominant Pied';
-        }
-        if (isset($genotype['pied_rec']) && $genotype['pied_rec'] === 'pipi') {
-            $parts_ja[] = 'レセッシブパイド';
-            $parts_en[] = 'Recessive Pied';
-        }
-        if (isset($genotype['orangeface']) && $genotype['orangeface'] === 'ofof') {
-            if ($isParblue) {
-                $parts_ja[] = 'イエローフェイス';
-                $parts_en[] = 'Yellowfaced';
-            } else {
-                $parts_ja[] = 'オレンジフェイス';
-                $parts_en[] = 'Orangefaced';
-            }
-        }
-        if (isset($genotype['pale_headed']) && $genotype['pale_headed'] === 'phph') {
-            $parts_ja[] = 'ペールヘッド';
-            $parts_en[] = 'Pale Headed';
-        }
-        
         if ($hasIno) {
-            $eye = 'red';
-            switch ($parblue) {
-                case 'tqtq':
-                    $parts_ja[] = 'ピュアホワイト';
-                    $parts_en[] = 'Pure White';
-                    break;
-                case 'tqaq':
-                    $parts_ja[] = 'クリーミノシーグリーン';
-                    $parts_en[] = 'Creamino Seagreen';
-                    break;
-                case 'aqaq':
-                    $parts_ja[] = 'クリーミノ';
-                    $parts_en[] = 'Creamino';
-                    break;
-                default:
-                    $parts_ja[] = 'ルチノー';
-                    $parts_en[] = 'Lutino';
-            }
+            $eye = $r['eyeIno'];
+            $base = $r['inoNames'][$parblue] ?? $r['inoDefault'];
         } else {
-            $baseNames = [
-                '++' => ['dd' => ['ja' => 'グリーン', 'en' => 'Green'], 'Dd' => ['ja' => 'ダークグリーン', 'en' => 'Dark Green'], 'DD' => ['ja' => 'オリーブ', 'en' => 'Olive']],
-                'aqaq' => ['dd' => ['ja' => 'アクア', 'en' => 'Aqua'], 'Dd' => ['ja' => 'アクアダーク', 'en' => 'Aqua Dark'], 'DD' => ['ja' => 'アクアオリーブ', 'en' => 'Aqua Olive']],
-                'tqtq' => ['dd' => ['ja' => 'ターコイズ', 'en' => 'Turquoise'], 'Dd' => ['ja' => 'ターコイズダーク', 'en' => 'Turquoise Dark'], 'DD' => ['ja' => 'ターコイズオリーブ', 'en' => 'Turquoise Olive']],
-                'tqaq' => ['dd' => ['ja' => 'シーグリーン', 'en' => 'Seagreen'], 'Dd' => ['ja' => 'シーグリーンダーク', 'en' => 'Seagreen Dark'], 'DD' => ['ja' => 'シーグリーンオリーブ', 'en' => 'Seagreen Olive']],
-            ];
-            $baseName = $baseNames[$parblue][$dark] ?? $baseNames['++']['dd'];
-            $parts_ja[] = $baseName['ja'];
-            $parts_en[] = $baseName['en'];
+            $base = $r['baseNames'][$parblue][$g('dark')] ?? $r['baseDefault'];
         }
-        
+        $parts_ja[] = $base['ja'];
+        $parts_en[] = $base['en'];
+
         return [
             'ja' => implode('', $parts_ja),
             'en' => implode(' ', $parts_en),
@@ -3231,6 +3205,58 @@ private function genotypeEquivalent(string $g1, string $g2): bool
 
 class GeneticsCalculator
 {
+    /** 座位キー → calculateOffspring の入力欄名（f_〈欄〉 / m_〈欄〉） */
+    public const LOCUS_FIELDS = [
+        'parblue' => 'parblue', 'dark' => 'dark', 'violet' => 'vio',
+        'fallow_pale' => 'flp', 'fallow_bronze' => 'flb', 'pied_dom' => 'pidom', 'pied_rec' => 'pirec',
+        'dilute' => 'dil', 'edged' => 'ed', 'orangeface' => 'of', 'pale_headed' => 'ph',
+        'ino' => 'ino', 'opaline' => 'opaline', 'cinnamon' => 'cinnamon',
+    ];
+
+    /**
+     * 1座位だけを変えた交配の子の分布（性別ごとに合計1）。calculateOffspring の結果を座位ごとに集計する。
+     * @return array ['male' => [正規の遺伝子型 => 確率], 'female' => [...]]
+     */
+    public function locusCross(string $locus, string $male, string $female): array
+    {
+        $field = self::LOCUS_FIELDS[$locus];
+        $res = $this->calculateOffspring(['f_' . $field => $male, 'm_' . $field => $female, 'no_filter' => 1]);
+        $out = ['male' => [], 'female' => []];
+        foreach ($res['genotype'] as $r) {
+            $g = $this->convertToGenotypeArrayV7($r['genotype'], $r['sex']);
+            $v = AgapornisLoci::canonicalGenotype($locus, $g[$locus] ?? AgapornisLoci::wildGenotype($locus, $r['sex']));
+            $out[$r['sex']][$v] = ($out[$r['sex']][$v] ?? 0) + $r['probability'];
+        }
+        foreach ($out as $sex => $dist) {
+            $total = array_sum($dist);
+            if ($total > 0) {
+                foreach ($dist as $v => $p) $out[$sex][$v] = round($p / $total, 10);
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * 全座位・全組み合わせの交配表（index.php が CROSS_TABLE として注入。JS は GenoData.cross で引く）
+     * @return array [座位][父の遺伝子型][母の遺伝子型] => ['male' => [...], 'female' => [...]]
+     */
+    public static function crossTable(): array
+    {
+        static $cache = null;
+        if ($cache !== null) return $cache;
+        $calc = new self();
+        $table = [];
+        foreach (array_keys(self::LOCUS_FIELDS) as $locus) {
+            $g = AgapornisLoci::canonicalGenotypes($locus);
+            foreach ($g['male'] as $m) {
+                foreach ($g['female'] as $f) {
+                    $table[$locus][$m][$f] = $calc->locusCross($locus, $m, $f);
+                }
+            }
+        }
+        return $cache = $table;
+    }
+
     /**
      * 常染色体遺伝計算
      */

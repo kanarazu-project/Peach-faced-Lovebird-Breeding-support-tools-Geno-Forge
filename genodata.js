@@ -1,6 +1,6 @@
 /**
  * Agapornis Gene-Forge — genodata.js
- * 遺伝の事実の引き出し（GENOTYPE_DATA の表引きだけを行う）
+ * 遺伝の事実の引き出し（GENOTYPE_DATA・CROSS_TABLE の表引きだけを行う）
  *
  * 整合性原理（SSOT）:
  * - 遺伝の事実と判定規則は genetics.php にだけある（AgapornisLoci::genotypeData()）
@@ -72,6 +72,37 @@ const GenoData = {
         if (!l || !alleles || !alleles.length) return null;
         const key = alleles.slice().sort().join('|') + (alleles.length === 1 ? '|W' : '');
         return l.byAlleles[key] || null;
+    },
+
+    /**
+     * 1座位の交配の子の分布 {male: {遺伝子型: 確率}, female: {...}}（性別ごとに合計1）。
+     * 表は PHP の GeneticsCalculator が計算し、index.php が CROSS_TABLE として注入する。未入力は野生型、未知の表記は null。
+     */
+    cross(locusKey, male, female) {
+        if (typeof CROSS_TABLE === 'undefined') return null;
+        const m = this.canonical(locusKey, male || this.wildGenotype(locusKey, 'male'));
+        const f = this.canonical(locusKey, female || this.wildGenotype(locusKey, 'female'));
+        const row = (CROSS_TABLE[locusKey] || {})[m];
+        return row ? (row[f] || null) : null;
+    },
+
+    /** 子の遺伝子型が vals のどれかになる確率。sex を省くと雌雄の平均。未知の表記は 0 */
+    crossProbability(locusKey, male, female, vals, sex) {
+        const c = this.cross(locusKey, male, female);
+        if (!c) return 0;
+        const want = new Set((vals || []).map(v => this.canonical(locusKey, v)));
+        const p = s => Object.entries(c[s] || {}).reduce((a, [g, q]) => a + (want.has(g) ? q : 0), 0);
+        return sex ? p(sex) : (p('male') + p('female')) / 2;
+    },
+
+    /** 変異アレルを1つ持つ保因の遺伝子型（targetGenotype の変異アレルと野生型アレルの組。伴性メスはヘミ接合） */
+    carrier(locusKey, targetGenotype, sex = 'male') {
+        const mutant = this.mutantAlleles(locusKey, targetGenotype)[0];
+        const wild = (this.alleles(locusKey, this.wildGenotype(locusKey, 'male')) || [])[0];
+        if (!mutant || !wild) return null;
+        const l = this.locus(locusKey);
+        if (l && l.sexLinked && sex === 'female') return this.fromAlleles(locusKey, [mutant]);
+        return this.fromAlleles(locusKey, [wild, mutant]);
     },
 
     /** 色の定義の遺伝子型（伴性メスはヘミ接合） */

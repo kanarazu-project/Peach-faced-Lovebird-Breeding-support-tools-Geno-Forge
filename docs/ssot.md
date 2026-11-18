@@ -12,7 +12,7 @@ genetics.php（正本）
                        LINKAGE_GROUPS / RECOMBINATION_RATES / INDEPENDENT_LOCI / COLOR_PART_LABELS /
                        splitGenotype() / wildAllele() / isExpressedAlleles() / resolveDarkGenotype() /
                        canonicalGenotypes() / canonicalGenotype() / wildGenotype() / genotypeData()
-  GeneticsCalculator   子の確率
+  GeneticsCalculator   子の確率・座位ごとの交配表（crossTable()。繁殖計画が引く）
   FamilyEstimatorV3    家系推定
   GenotypeEstimator    表現型からの推定・確信度（phenotypeConfidence）・ACADEMIC_NOTATION・pedigreeData()
   PathFinder           目標までの経路・最短世代数
@@ -29,6 +29,7 @@ genetics.php（正本）
 | LINKAGE_GROUPS / RECOMBINATION_RATES / INDEPENDENT_LOCI | AgapornisLoci の同名定数 |
 | PEDIGREE_DATA | GenotypeEstimator::pedigreeData()（座位順・伴性座位・野生型・学術表記・確信度表） |
 | GENOTYPE_DATA | AgapornisLoci::genotypeData()（下記） |
+| CROSS_TABLE | GeneticsCalculator::crossTable()（座位 → 父の遺伝子型 → 母の遺伝子型 → 性別ごとの子の分布。calculateOffspring を1座位ずつ走らせて集計。JS は GenoData.cross / crossProbability で引く） |
 
 `GENOTYPE_DATA` の中身（JS は `genodata.js` の `GenoData` から引く）:
 
@@ -40,7 +41,8 @@ genetics.php（正本）
 | targets[色] | 繁殖計画の目標（required / slr / tier / minGen は PathFinder / difficulty / inbreedingLimit） | planner.js |
 | plannerSlrKeys | 繁殖計画の伴性キー（ino / cin / op）→ 座位 | planner.js |
 | inoTypes | パーブルー → INO 色（表示の優先順） | guardian.js |
-| colorKey | 定義済みの色の署名 → 色キー（bySignature）と、定義に無い組み合わせの組み立て規則 | birds.js |
+| colorKey | 定義済みの色の署名 → 色キー（bySignature） | birds.js |
+| colorName | 定義に無い組み合わせの色名の規則（部品は COLOR_NAME_PARTS、基本色の名前は COLOR_DEFINITIONS）。PHP の generateColorName も同じ表を使う | birds.js（composeColorName）, genetics.php |
 | darknessByDark | ダーク因子の遺伝子型 → 濃さ欄の値 | birds.js |
 
 ## 2. JS・他の PHP に置いてよいもの
@@ -60,7 +62,8 @@ JS にも他の PHP にも書かない。PHP で計算した結果を注入し�
 | リテラル検査 | `scripts/ssot-literal-check`（語彙は genetics.php から読む） | genetics.php 以外の *.js / *.php の遺伝子型リテラル（出現1つずつ）。ssot-data ブロックは正本の選択肢・色と照合 |
 | 規則表 | `.claude/rule-lint.tsv` の js-rate-fallback / inject-* | JS の率の直書き、注入の欠落 |
 | 一致検査 | `scripts/pedigree-check` | pedigree.js の確信度と PHP の phenotypeConfidence（全色 × 性別 × 座位 × 濃さ欄） |
-| 一致検査 | `scripts/js-check` | birds.js の色キー（全色 × 性別）、guardian.js の INO 型、planner.js の目標と ino/pld の区別、genodata.js の引き方 |
+| 一致検査 | `scripts/js-check` | birds.js の色キー（全色 × 性別）と定義に無い組み合わせの色名（PHP の generateColorName と照合）、guardian.js の INO 型、planner.js の目標・ino/pld の区別・確率（PHP の calculateOffspring と照合）、genodata.js の引き方 |
+| ブラウザ検査 | `scripts/browser-test`（Playwright + Chromium。無い環境では SKIP、CI は BROWSER_TEST_REQUIRED=1 で必須） | debug_test.php の JS テスト（30件）、debug_test.php・index.php のページのエラー、index.php での確率・色名 |
 | 回帰テスト | `scripts/php-test`（debug_test.php） | 計算・推定の挙動 |
 | 入口 | `scripts/agent-check` | 上の検査をまとめて実行 |
 | CI | `.github/workflows/verify.yml` | push（main）と pull request で `scripts/agent-check` を全量実行 |
@@ -70,6 +73,8 @@ JS にも他の PHP にも書かない。PHP で計算した結果を注入し�
 
 | 箇所 | 中身 | 見立て |
 |---|---|---|
-| planner.js の確率の見積もり | ペアの評価で、親の遺伝子型の組み合わせから 1.0 / 0.5 / 0.25 などの係数を掛けている | 遺伝子型の文字列は無くなったが、メンデル比の近似という計算そのものは GeneticsCalculator と二重である。PHP の計算結果を使う形への置き換えは未着手 |
-| breeding.js | BreedingEngine はどこからも呼ばれていない（交配計算の写しは削除済み） | ファイルごと削除するかは未判断 |
-| birds.js の色キー組み立て（定義に無い組み合わせ） | 部品の並べ方は genetics.php の規則（colorKey.steps）だが、ブロンズファロー・ドミナントパイド・オレンジフェイスの部品が無い | 定義済みの310色は署名で正しく引ける。定義に無い組み合わせの名前は、PHP の generateColorName と揃っていない |
+| planner.js の確率（連鎖） | 座位ごとの確率は CROSS_TABLE（PHP の計算）から引くが、座位どうしは独立として掛けている | 個体の記録から連鎖の相（dark–parblue、Z 上の cin–ino–op）が決まらないため。相を記録する仕組みができたら、組の計算を PHP に寄せる |
+
+解決済み（2026-11-18）: planner.js のメンデル比の係数 → CROSS_TABLE。breeding.js → 削除（どこからも呼ばれていなかった）。
+定義に無い組み合わせの色名 → generateColorName と birds.js が同じ表（GENOTYPE_DATA.colorName）を使う。
+ブラウザ用 JS テスト → scripts/browser-test として agent-check と CI に載せた。

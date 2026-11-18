@@ -156,7 +156,6 @@ hr{border:none;border-top:1px solid #2a3545;margin:2rem 0}
 ├── birds.js             # Bird DB + Demo 72birds (2,298 lines)
 ├── family.js            # Family Tree UI + Auto-populate (1,542 lines)
 ├── guardian.js          # Health Evaluation
-├── breeding.js          # Breeding Validation
 ├── pedigree.js          # Pedigree Generation
 ├── planner.js           # Path Planner (2,043 lines)
 └── app.js               # App Init</code></pre>

@@ -97,16 +97,18 @@ genetics.php (SSOT)
     ├─ COLOR_DEFINITIONS (310+ colors)
     ├─ RECOMBINATION_RATES (linkage rates)
     ├─ GenotypeEstimator::pedigreeData() (wild types, academic notation, confidence table)
-    ├─ AgapornisLoci::genotypeData() (genotype table, colour genotypes, planner targets, colour keys)
+    ├─ AgapornisLoci::genotypeData() (genotype table, colour genotypes, planner targets, colour keys, colour-name rules)
+    ├─ GeneticsCalculator::crossTable() (per-locus offspring distributions for the planner)
     │
     └─→ index.php → JS constant injection → genodata.js (lookup helper) → JS files
 ```
 
-Genotype strings and genetic rules live only in `genetics.php`. JavaScript holds no copy of a genetic rule: when it needs a fact or a result, PHP computes a table and `index.php` injects it (`GENOTYPE_DATA`, `PEDIGREE_DATA`). JS reads it through `genodata.js`, asking by locus and allele names (`GenoData.isWild('dark', g)`, `GenoData.dose('fallow_pale', g)`). Other PHP files call `AgapornisLoci` instead of writing genotypes. Bird records (demo and sample data) sit inside `ssot-data:begin` / `ssot-data:end` blocks and are checked against the canonical notation.
+Genotype strings and genetic rules live only in `genetics.php`. JavaScript holds no copy of a genetic rule: when it needs a fact or a result, PHP computes a table and `index.php` injects it (`GENOTYPE_DATA`, `PEDIGREE_DATA`, `CROSS_TABLE`). JS reads it through `genodata.js`, asking by locus and allele names (`GenoData.isWild('dark', g)`, `GenoData.dose('fallow_pale', g)`). Other PHP files call `AgapornisLoci` instead of writing genotypes. Bird records (demo and sample data) sit inside `ssot-data:begin` / `ssot-data:end` blocks and are checked against the canonical notation.
 
 `scripts/agent-check` enforces this rule:
 - `scripts/ssot-literal-check` reads its vocabulary from `genetics.php` and flags every genotype literal outside it.
 - `scripts/js-check` and `scripts/pedigree-check` compare the JS lookups with PHP.
+- `scripts/browser-test` runs the JS tests and the app page in a real browser (Playwright + Chromium).
 - `.claude/rule-lint.tsv` checks the injections and the rate fallbacks.
 
 The full map, what JS may hold and the remaining issues are in [`docs/ssot.md`](docs/ssot.md).
@@ -119,24 +121,23 @@ The mathematical logic of `genetics.php` (genetic calculation core engine) has b
 
 | File | Lines | Purpose |
 |------|------:|---------|
-| genetics.php | 5,650 | Genetics calculation engine (SSOT) |
+| genetics.php | 5,676 | Genetics calculation engine (SSOT) |
 | style.css | 3,091 | All styles |
-| debug_test.php | 2,887 | Debug test suite |
-| index.php | 2,326 | Main UI + JS constant injection |
-| birds.js | 2,218 | Bird DB + 72 demo specimens |
+| debug_test.php | 2,911 | Debug test suite |
+| index.php | 2,327 | Main UI + JS constant injection |
+| birds.js | 2,224 | Bird DB + 72 demo specimens |
 | lang_pathfinder.php | 2,192 | PathFinder i18n (11 languages) |
-| planner.js | 1,841 | Breeding planner + linkage evaluation |
+| planner.js | 1,827 | Breeding planner + linkage evaluation |
 | readme_lang.php | 1,828 | README i18n (11 languages) |
 | family.js | 1,512 | Family tree UI + Auto Populate |
 | lang_guardian.php | 1,165 | Guardian i18n (11 languages) |
 | app.js | 910 | Main application logic |
 | pedigree.js | 562 | Pedigree chart rendering |
 | guardian.js | 507 | Health assessment engine |
-| breeding.js | 237 | Breeding API (offspring calculation is done by PHP GeneticsCalculator) |
 | readme.php | 374 | README page |
 | infer.php | 214 | Genotype inference logic |
 | lang.php | 182 | Base i18n (11 languages) |
-| genodata.js | 87 | Genetic fact lookups (reads GENOTYPE_DATA injected from genetics.php) |
+| genodata.js | 118 | Genetic fact lookups (reads GENOTYPE_DATA and CROSS_TABLE injected from genetics.php) |
 
 ### Key Classes
 
@@ -281,6 +282,22 @@ minGenerations = 0                                     (wild type)
 
 This is the minimum *for this plan*. Shorter routes, such as pairing two expressing birds directly, are not counted.
 
+### Breeding planner probability (`planner.js` + `CROSS_TABLE`)
+
+The planner does not apply its own Mendelian ratios. `GeneticsCalculator::crossTable()` runs `calculateOffspring()` for every locus and every male × female genotype pair (156 pairs), and records the offspring distribution for each sex. `index.php` injects it as `CROSS_TABLE`; `GenoData.cross()` / `GenoData.crossProbability()` look it up.
+
+```
+P(target) = ½ · Π P_male(locus in target) + ½ · Π P_female(locus in target)
+```
+
+Examples: turquoise ♂ × aqua ♀ → seagreen 100% (the old coefficients gave 25%); seagreen × seagreen → green 0% (old: 25%); olive × green → dark green 100% (old: 0%); split-ino ♂ × green ♀ → lutino 25% of all chicks (all of them daughters). The intermediate goals of multi-generation plans (carrier × carrier, split ♂ × wild ♀) and the pairings proposed for them take their probabilities from the same table.
+
+Limitation: loci are multiplied as independent. The planner does not know the phase of linked loci (dark–parblue, cinnamon–ino–opaline on Z) from a bird's record, so recombination is not applied here. The offspring calculator tab applies it.
+
+### Names of colour combinations not in `COLOR_DEFINITIONS`
+
+`AgapornisLoci::generateColorName()` builds the name from the parts table `COLOR_NAME_PARTS` (opaline, cinnamon, pallid, pale fallow, bronze fallow, dilute, edged, violet, dominant pied, recessive pied, orangeface/yellowface, pale headed), then the base colour, whose name comes from `COLOR_DEFINITIONS`. The same rules go to JS as `GENOTYPE_DATA.colorName`, and `BirdDB.composeColorName()` uses them, so both sides give the same name. `scripts/js-check` compares them on 3,002 genotypes in Japanese and English. Genotypes are put in canonical order first, so the calculator's `+Pi` is named Dominant Pied like `Pi+`.
+
 ### Phenotype → genotype confidence (`GenotypeEstimator`)
 
 | Confidence | Meaning | Examples |
@@ -325,17 +342,17 @@ Comprehensive test suite covering all genetic calculations and integrations.
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 127 (PHP 97 + JS 30) |
+| Total Tests | 128 (PHP 98 + JS 30) |
 | Pass Rate | 100% |
 | Test File | `debug_test.php` |
 
 **Test Categories:**
 - PHP Unit tests (50): Core classes, calculations, color definitions
 - PHP Integration tests (33): UI/API compatibility, SSOT integrity, i18n coverage
-- PHP Regression tests (13): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist, pedigree data built from SSOT, genotype data (canonical forms, colour signatures, planner targets, INO types)
+- PHP Regression tests (15): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist, pedigree data built from SSOT, genotype data (canonical forms, colour signatures, planner targets, INO types), planner cross table
 - JS Tests (30): BreedingValidator, HealthGuardian, BreedingPlanner
 
-Run tests via browser: `debug_test.php?run_tests=1` (PHP and JS tests), or on the command line: `bash scripts/agent-check`. It runs the Skill routing check, the rule table, the PHP tests, the pedigree PHP/JS match check, the SSOT literal check and the JS/PHP match check.
+Run tests via browser: `debug_test.php?run_tests=1` (PHP and JS tests), or on the command line: `bash scripts/agent-check`. It runs the Skill routing check, the rule table, the PHP tests, the pedigree PHP/JS match check, the SSOT literal check, the JS/PHP match check and the browser test. The browser test needs Playwright with Chromium; without it, it prints `SKIP` locally. CI installs them and sets `BROWSER_TEST_REQUIRED=1`, so a missing browser fails there.
 
 CI (`.github/workflows/verify.yml`) runs `scripts/agent-check` on every push to main and on pull requests. To enable the pre-commit hook in a clone, run `bash scripts/install-hooks` once. It runs the routing check and the rule table on staged files only; the full check stays in CI.
 

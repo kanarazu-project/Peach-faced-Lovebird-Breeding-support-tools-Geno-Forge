@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# ブラウザで JS を実際に動かす検査。1件でも失敗すれば NG・終了コード 1。
+#   1. debug_test.php?run_tests=1 の JS テスト（bv / hg / bp の一覧）に失敗が無く、件数が 0 でない
+#   2. debug_test.php と index.php でページのエラー（pageerror・console.error）が出ない
+#   3. index.php で GenoData・CROSS_TABLE が読み込まれ、色名・繁殖計画の確率が正本の表で計算できる
+# Playwright（node から require('playwright')）と Chromium が要る。無い環境では SKIP して 0 を返す。
+# BROWSER_TEST_REQUIRED=1（CI）のときは、無ければ NG にする。
+root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
+required="${BROWSER_TEST_REQUIRED:-0}"
+skip() { if [ "$required" = 1 ]; then echo "NG   browser-test: $1"; exit 1; fi; echo "SKIP browser-test: $1"; exit 0; }
+command -v php >/dev/null 2>&1 || skip "php が無い"
+command -v node >/dev/null 2>&1 || skip "node が無い"
+node -e "require('playwright')" >/dev/null 2>&1 || skip "Playwright が無い（require('playwright') が解決できない）"
+port="$(node -e "const s=require('net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close();})")"
+log="$(mktemp)"
+php -S "127.0.0.1:$port" -t "$root" >"$log" 2>&1 &
+pid=$!
+trap 'kill "$pid" 2>/dev/null; rm -f "$log"' EXIT
+for _ in $(seq 1 50); do
+  node -e "require('http').get('http://127.0.0.1:$port/genodata.js',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))" && break
+  node -e "setTimeout(()=>{},100)"
+done
+BASE="http://127.0.0.1:$port" node - <<'JS'
+const { chromium } = require('playwright');
+const base = process.env.BASE, ng = [];
+(async () => {
+  let browser;
+  try { browser = await chromium.launch(); }
+  catch (e) { console.log('NG   browser-test: Chromium を起動できない: ' + e.message.split('\n')[0]); process.exit(1); }
+  const open = async (path) => {
+    const page = await browser.newPage(), errors = [];
+    page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+    page.on('console', m => { if (m.type() === 'error') errors.push('console.error: ' + m.text()); });
+    await page.goto(base + path, { waitUntil: 'load', timeout: 120000 });
+    return { page, errors };
+  };
+  // 1・2. debug_test の JS テスト
+  const t = await open('/debug_test.php?run_tests=1');
+  await t.page.waitForFunction(() => ['bv-tests', 'hg-tests', 'bp-tests'].every(id => {
+    const el = document.getElementById(id); return el && el.children.length > 0;
+  }), null, { timeout: 60000 }).catch(() => ng.push('JS テストの一覧が埋まらない'));
+  await t.page.waitForTimeout(1000);
+  const js = await t.page.evaluate(() => ['bv-tests', 'hg-tests', 'bp-tests'].map(id => {
+    const items = [...(document.getElementById(id) || { children: [] }).children];
+    return { id, total: items.length,
+             failed: items.filter(li => li.classList.contains('failed')).map(li => li.textContent.trim().replace(/\s+/g, ' ').slice(0, 160)) };
+  }));
+  let total = 0;
+  for (const r of js) {
+    total += r.total;
+    if (r.total === 0) ng.push(`${r.id}: テストが 0 件`);
+    for (const f of r.failed) ng.push(`${r.id}: ${f}`);
+  }
+  for (const e of t.errors) ng.push('debug_test.php ' + e);
+  // 2・3. index.php
+  const ix = await open('/index.php');
+  await ix.page.waitForTimeout(1500);
+  const app = await ix.page.evaluate(() => {
+    const out = { GenoData: typeof GenoData, CROSS_TABLE: typeof CROSS_TABLE };
+    if (typeof GenoData === 'undefined' || typeof BreedingPlanner === 'undefined' || typeof BirdDB === 'undefined') return out;
+    const bird = (c, sex) => ({ sex, genotype: GenoData.colorGenotype(c, sex) });
+    out.seagreen = BreedingPlanner.calculateTargetProbability(bird('turquoise', 'male'), bird('aqua', 'female'), BreedingPlanner.TARGET_REQUIREMENTS.seagreen);
+    out.name = BirdDB.composeColorName({ parblue: 'aqaq', dark: 'Dd', pied_dom: 'Pi+', fallow_bronze: 'flbflb' }, 'en');
+    return out;
+  });
+  if (app.GenoData !== 'object') ng.push('index.php: GenoData が無い');
+  if (app.CROSS_TABLE !== 'object') ng.push('index.php: CROSS_TABLE が無い');
+  if (app.seagreen === undefined || Math.abs(app.seagreen - 1) > 1e-9) ng.push(`index.php: turquoise × aqua → seagreen の確率が 1 でない（${app.seagreen}）`);
+  if (app.name !== 'Bronze Fallow Dominant Pied Aqua Dark') ng.push(`index.php: 色名の組み立てが PHP と違う（${app.name}）`);
+  for (const e of ix.errors) ng.push('index.php ' + e);
+  await browser.close();
+  if (ng.length) { console.log(ng.slice(0, 30).map(m => 'NG   browser-test: ' + m).join('\n')); console.log(`NG   browser-test: ${ng.length} 件`); process.exit(1); }
+  console.log(`OK   browser-test: JS テスト ${total} 件すべて合格、debug_test.php・index.php にページのエラーなし`);
+})().catch(e => { console.log('NG   browser-test: ' + e.message.split('\n')[0]); process.exit(1); });
+JS
