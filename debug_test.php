@@ -2226,6 +2226,20 @@ if ($runTests) {
         return [!$failed, $failed ? 'NG: ' . implode(' / ', $failed) : count($checks) . ' checks OK'];
     });
 
+    // Test 22-18: 繁殖計画の目標は見た目の完全一致（色を隠す・変える座位も条件に入る）
+    $reg('Planner targets: allowed genotypes per locus by phenotype (INO excluded from green, splits included)', function () {
+        $t = AgapornisLoci::genotypeData()['targets'];
+        $checks = [
+            'green: ino allows wild and splits only' => $t['green']['allowed']['ino'] === ['++', '+pld', '+ino', '+W'],
+            'green: parblue allows splits' => in_array('+aq', $t['green']['allowed']['parblue'], true) && !in_array('aqaq', $t['green']['allowed']['parblue'], true),
+            'lutino: dark not constrained (hidden by INO)' => !isset($t['lutino']['allowed']['dark']),
+            'pied_dom_green: Pi+ and PiPi' => $t['pied_dom_green']['allowed']['pied_dom'] === ['Pi+', 'PiPi'],
+            'every target constrains every locus (INO colours: all but dark)' => count(array_filter($t, fn($x) => count($x['allowed']) < count(AgapornisLoci::LOCI) - 1)) === 0,
+        ];
+        $failed = array_keys(array_filter($checks, fn($v) => !$v));
+        return [!$failed, $failed ? 'NG: ' . implode(' / ', $failed) : count($checks) . ' checks OK'];
+    });
+
     // Test 22-7: 確信度は表現型から判別できる度合いを反映する
     $reg('GenotypeEstimator: confidence reflects what phenotype can determine', function () use ($locusOf) {
         $est = new GenotypeEstimator();

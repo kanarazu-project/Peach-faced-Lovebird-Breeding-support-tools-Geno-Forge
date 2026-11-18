@@ -492,9 +492,22 @@ final class AgapornisLoci
                 if (!$i['wild'] && $i['expressed'] && in_array($l, ['ino', 'fallow_pale', 'fallow_bronze'], true)) $limit = true;
             }
             $difficulty = ['none', 'low', 'mid', 'high'][$count] ?? 'extreme';
+            // 子がこの色になる条件（見た目の完全一致）: 座位ごとに、色の定義と見た目（phenoForm）が同じ遺伝子型。
+            // 定義に無い座位は表現していないこと。INO の色では COLOR_LOCI_HIDDEN_BY_INO の座位は問わない
+            $form = fn(string $l, ?string $g) => $g === null ? null : ($loci[$l]['genotypes'][$g]['phenoForm'] ?? null);
+            $inoForm = $form('ino', $def['genotype']['ino'] ?? null);
+            $inoColor = $inoForm !== null && array_unique(self::splitGenotype('ino', $inoForm) ?? []) === [self::COLOR_NAME_INO_ALLELE];
+            $allowed = [];
+            foreach ($loci as $l => $info) {
+                if ($inoColor && in_array($l, self::COLOR_LOCI_HIDDEN_BY_INO, true)) continue;
+                $want = $form($l, $def['genotype'][$l] ?? null);
+                $allowed[$l] = array_values(array_keys(array_filter($info['genotypes'],
+                    fn($i, $g) => $i['canonical'] === $g && $i['phenoForm'] === $want, ARRAY_FILTER_USE_BOTH)));
+            }
             $targets[$color] = [
                 'required' => (object)$required,
                 'slr' => (object)$slr,
+                'allowed' => $allowed,
                 'tier' => $def['tier'] ?? 1,
                 'minGen' => $pathFinder->findPath((string)$color)['minGenerations'] ?? 0,
                 'difficulty' => $difficulty,

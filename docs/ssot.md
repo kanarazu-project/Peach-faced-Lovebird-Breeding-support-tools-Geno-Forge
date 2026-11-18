@@ -39,7 +39,7 @@ genetics.php（正本）
 | loci[座位].genotypes[表記] | canonical / alleles / mutant / dose / wild / expressed / hemi / phenoForm。並び順違い（ino+）と旧表記（eded）も引ける | 全 JS |
 | loci[座位].wild / byAlleles | 野生型（オス/メス）、アレルの組 → 正規の遺伝子型 | planner.js, birds.js |
 | byColor[色][性別] | 色の定義の遺伝子型（伴性メスはヘミ接合） | family.js（整合性チェックの補完） |
-| targets[色] | 繁殖計画の目標（required / slr / tier / minGen は PathFinder / difficulty / inbreedingLimit） | planner.js |
+| targets[色] | 繁殖計画の目標（required / slr / tier / minGen は PathFinder / difficulty / inbreedingLimit）と、確率の判定に使う allowed（座位ごとに目標と同じ見た目の遺伝子型。INO の色はダークを問わない） | planner.js |
 | plannerSlrKeys | 繁殖計画の伴性キー（ino / cin / op）→ 座位 | planner.js |
 | inoTypes | パーブルー → INO 色（表示の優先順） | guardian.js |
 | colorKey | 定義済みの色の署名 → 色キー（bySignature）と、INO の発現時に署名から除く座位（hiddenByIno）。署名は座位ごとの見た目（phenoForm。ALLELE_DOMINANCE と優性のそろえ方込み）。PHP の findColorKey も同じ署名で引く | birds.js（colorKeyOf）, genetics.php |

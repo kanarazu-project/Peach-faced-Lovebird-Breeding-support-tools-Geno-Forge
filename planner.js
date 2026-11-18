@@ -370,8 +370,13 @@ const BreedingPlanner = {
      */
     calculateTargetProbabilityDetail(male, female, target) {
         const mGeno = male.genotype || {}, fGeno = female.genotype || {};
-        const want = { ...target.required };
-        for (const [slrKey, vals] of Object.entries(target.slr)) want[this._slrLocus(slrKey)] = vals;
+        // 目標の色は見た目の完全一致（target.allowed: 座位ごとに目標と同じ見た目の遺伝子型。genetics.php が作る）。
+        // allowed が無い目標（旧い形）だけ、必要な座位（required / slr）で判定する
+        let want = target.allowed;
+        if (!want) {
+            want = { ...target.required };
+            for (const [slrKey, vals] of Object.entries(target.slr)) want[this._slrLocus(slrKey)] = vals;
+        }
 
         const groups = (typeof LINKED_CROSS_TABLE !== 'undefined') ? Object.keys(LINKED_CROSS_TABLE) : [];
         const linked = new Set(groups.flatMap(g => GenoData.linkedGroup(g).loci));

@@ -8,6 +8,8 @@
 #   8. birds.js  登録画面の相（applyPhase）と記録の移行（migrateBird）: 選んだ相・旧い cis/trans の指定がハプロタイプに入り、
 #                 繁殖計画の確率が PHP と一致する。不明は未確定のまま。欄のキー（vio など）は座位キーへ移る
 #   9. birds.js  colorKeyOf: 遺伝子型（スプリット・表記違い・見た目が同じ遺伝子型を含む）の色キーが PHP の findColorKey と一致する
+#  10. planner.js  目標は見た目の完全一致: 色の定義どおりの親（連鎖する組に二重ヘテロを持たない）のランダムな組で、
+#                 目標の色の確率が PHP の calculateOffspring（色キー）と一致する。ルチノー × ルチノー → グリーンは 0
 #   6. birds.js  composeColorName: 定義に無い組み合わせの色名が PHP の generateColorName と一致する（日本語・英語）
 #   5. planner.js  calculateTargetProbability が、色の定義どおりの親の交配で PHP の calculateOffspring と同じ確率を返す
 root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
@@ -37,7 +39,33 @@ php -r 'require "genetics.php"; echo json_encode(["COLOR_MASTER" => AgapornisLoc
     return [$target, $mc, $fc, $p];
   }, [["seagreen", "turquoise", "aqua"], ["aqua", "seagreen", "seagreen"], ["green", "seagreen", "seagreen"], ["lutino", "lutino", "green"],
       ["lutino", "green", "lutino"], ["darkgreen", "olive", "green"], ["darkgreen", "darkgreen", "darkgreen"], ["creamino", "creamino", "seagreen"],
-      ["opaline_green", "opaline_green", "green"], ["cinnamon_green", "green", "cinnamon_green"]]),
+      ["opaline_green", "opaline_green", "green"], ["cinnamon_green", "green", "cinnamon_green"],
+      ["green", "lutino", "lutino"], ["lutino", "lutino", "lutino"], ["green", "lutino", "green"]]),
+  "RAND_PROB_CASES" => (function () {
+    mt_srand(17); $by = AgapornisLoci::genotypeData()["byColor"]; $colors = array_keys($by); $out = [];
+    $doubleHet = function (array $g) {
+      foreach (AgapornisLoci::LINKAGE_GROUPS as $grp) {
+        $n = 0; foreach ($grp["loci"] as $l) { $a = AgapornisLoci::splitGenotype($l, $g[$l] ?? AgapornisLoci::wildGenotype($l)) ?? []; if (count($a) === 2 && $a[0] !== $a[1]) $n++; }
+        if ($n >= 2) return true;
+      }
+      return false;
+    };
+    while (count($out) < 600) {
+      $mc = $colors[mt_rand(0, count($colors) - 1)]; $fc = $colors[mt_rand(0, count($colors) - 1)];
+      if ($doubleHet($by[$mc]["male"]) || $doubleHet($by[$fc]["female"])) continue;
+      $in = ["no_filter" => 1];
+      foreach (["f" => [$mc, "male"], "m" => [$fc, "female"]] as $pre => [$c, $sx]) foreach ($by[$c][$sx] as $l => $g) $in[$pre . "_" . GeneticsCalculator::LOCUS_FIELDS[$l]] = $g;
+      $p = [];
+      foreach ((new GeneticsCalculator())->calculateOffspring($in)["phenotype"] as $r) $p[$r["colorKey"]] = ($p[$r["colorKey"]] ?? 0) + $r["probability"];
+      $defined = array_values(array_filter(array_keys($p), fn($k) => isset($by[$k])));
+      if (!$defined) continue;
+      $t = $defined[mt_rand(0, count($defined) - 1)];
+      $out[] = [$t, $mc, $fc, $p[$t]];
+      $z = $colors[mt_rand(0, count($colors) - 1)];
+      $out[] = [$z, $mc, $fc, $p[$z] ?? 0];
+    }
+    return $out;
+  })(),
   "NAME_CASES" => (function () {
     mt_srand(11); $cases = [["pied_dom" => "+Pi", "edged" => "eded"], ["parblue" => "aq+", "violet" => "vV", "orangeface" => "ofof"]];
     for ($k = 0; $k < 3000; $k++) { $sex = $k % 2 ? "male" : "female"; $g = [];
@@ -72,7 +100,7 @@ for (const [pb, color] of D.inoTypes) check(ctx.$H._getINOTypeName({ parblue: pb
 check(ctx.$P.TARGET_REQUIREMENTS === D.targets, 'planner.TARGET_REQUIREMENTS is not GENOTYPE_DATA.targets');
 check(ctx.$P.isCompatibleSplit('+pld', ['pldpld', 'pldW'], 'ino') === true, 'planner.isCompatibleSplit +pld vs pallid');
 check(ctx.$P.isCompatibleSplit('+ino', ['pldpld', 'pldW'], 'ino') === false, 'planner.isCompatibleSplit +ino vs pallid');
-for (const [target, mc, fc, expected] of consts.PROB_CASES) {
+for (const [target, mc, fc, expected] of [...consts.PROB_CASES, ...consts.RAND_PROB_CASES]) {
   const bird = (c, sex) => ({ sex, genotype: ctx.$G.colorGenotype(c, sex) });
   const got = ctx.$P.calculateTargetProbability(bird(mc, 'male'), bird(fc, 'female'), D.targets[target]);
   check(Math.abs(got - expected) < 1e-9, `planner.calculateTargetProbability ${target} from ${mc} x ${fc}: ${got} (PHP ${expected})`);

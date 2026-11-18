@@ -294,6 +294,8 @@ P(target) = ½ · Π_groups P_male(group in target) + ½ · Π_groups P_female(g
             (each independent locus is its own group)
 ```
 
+**What counts as the target.** A chick counts only if it looks exactly like the target colour. For each locus, `targets[colour].allowed` lists the genotypes with the same phenotype form as the colour definition (see *Colour of a genotype* below). Loci that the colour does not have must be unexpressed (wild type or split). For INO colours, dark is not constrained. So lutino × lutino gives green 0% (it gave 100% when only the parblue and dark loci were checked). Split chicks such as green /aq now count as green (before, parblue `++` was required). Over the demo birds (every pair × every target), 4,580 of 401,760 values changed: 1,635 up, 2,945 down. `scripts/js-check` compares the planner with the colour key from `calculateOffspring()` on 600 random pairs of defined colours. Pairs with a double heterozygote in a linkage group are left out, because the planner and the calculator assume different phases there.
+
 Examples: turquoise ♂ × aqua ♀ → seagreen 100% (the old coefficients gave 25%); seagreen × seagreen → green 0% (old: 25%); olive × green → dark green 100% (old: 0%); split-ino ♂ × green ♀ → lutino 25% of all chicks (all of them daughters). The intermediate goals of multi-generation plans (carrier × carrier, split ♂ × wild ♀) and the pairings proposed for them take their probabilities from the same table.
 
 **Phase.** The haplotypes come from the bird's record (`Z_linked.Z1/Z2`, `autosomal_1.chr1/chr2`). Example, opaline cinnamon green from a male carrying cinnamon and opaline × a green hen: cis 17.2%, trans 7.8% (the old independent product gave 12.5% for both). Dark–parblue: `D aq / d +` × aqua → aqua dark 46.5% (cis), 3.5% (trans).
@@ -364,14 +366,14 @@ Comprehensive test suite covering all genetic calculations and integrations.
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 130 (PHP 100 + JS 30) |
+| Total Tests | 131 (PHP 101 + JS 30) |
 | Pass Rate | 100% |
 | Test File | `debug_test.php` |
 
 **Test Categories:**
 - PHP Unit tests (50): Core classes, calculations, color definitions
 - PHP Integration tests (33): UI/API compatibility, SSOT integrity, i18n coverage
-- PHP Regression tests (17): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist, pedigree data built from SSOT, genotype data (canonical forms, colour signatures, planner targets, INO types), planner cross table, linked cross table (cis/trans), colour key by phenotype
+- PHP Regression tests (18): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist, pedigree data built from SSOT, genotype data (canonical forms, colour signatures, planner targets, INO types), planner cross table, linked cross table (cis/trans), colour key by phenotype, planner targets by phenotype
 - JS Tests (30): BreedingValidator, HealthGuardian, BreedingPlanner
 
 Run tests via browser: `debug_test.php?run_tests=1` (PHP and JS tests), or on the command line: `bash scripts/agent-check`. It runs the Skill routing check, the rule table, the PHP tests, the pedigree PHP/JS match check, the SSOT literal check, the JS/PHP match check and the browser test. The browser test needs Playwright with Chromium; without it, it prints `SKIP` locally. CI installs them and sets `BROWSER_TEST_REQUIRED=1`, so a missing browser fails there.
