@@ -12,7 +12,7 @@ genetics.php（正本）
                        LINKAGE_GROUPS / RECOMBINATION_RATES / INDEPENDENT_LOCI / COLOR_PART_LABELS /
                        splitGenotype() / wildAllele() / isExpressedAlleles() / resolveDarkGenotype() /
                        canonicalGenotypes() / canonicalGenotype() / wildGenotype() / genotypeData()
-  GeneticsCalculator   子の確率・座位ごとの交配表（crossTable()。繁殖計画が引く）
+  GeneticsCalculator   子の確率・座位ごとの交配表（crossTable()）・連鎖する組の交配表（linkedCrossTable()）。繁殖計画が引く
   FamilyEstimatorV3    家系推定
   GenotypeEstimator    表現型からの推定・確信度（phenotypeConfidence）・ACADEMIC_NOTATION・pedigreeData()
   PathFinder           目標までの経路・最短世代数
@@ -29,6 +29,7 @@ genetics.php（正本）
 | LINKAGE_GROUPS / RECOMBINATION_RATES / INDEPENDENT_LOCI | AgapornisLoci の同名定数 |
 | PEDIGREE_DATA | GenotypeEstimator::pedigreeData()（座位順・伴性座位・野生型・学術表記・確信度表） |
 | GENOTYPE_DATA | AgapornisLoci::genotypeData()（下記） |
+| LINKED_CROSS_TABLE | GeneticsCalculator::linkedCrossTable()（連鎖する組 → 父のハプロタイプの組 → 母のハプロタイプ（伴性は1本）→ 性別ごとの子の遺伝子型の組。calcZLinkedV7 / calcAutosomal1V7 で組換え率込み。JS は GenoData.linkedProbability で引く） |
 | CROSS_TABLE | GeneticsCalculator::crossTable()（座位 → 父の遺伝子型 → 母の遺伝子型 → 性別ごとの子の分布。calculateOffspring を1座位ずつ走らせて集計。JS は GenoData.cross / crossProbability で引く） |
 
 `GENOTYPE_DATA` の中身（JS は `genodata.js` の `GenoData` から引く）:
@@ -73,8 +74,8 @@ JS にも他の PHP にも書かない。PHP で計算した結果を注入し�
 
 | 箇所 | 中身 | 見立て |
 |---|---|---|
-| planner.js の確率（連鎖） | 座位ごとの確率は CROSS_TABLE（PHP の計算）から引くが、座位どうしは独立として掛けている | 個体の記録から連鎖の相（dark–parblue、Z 上の cin–ino–op）が決まらないため。相を記録する仕組みができたら、組の計算を PHP に寄せる |
+| 登録画面の相の選択欄 | 「独立 / Z^pld,cin（cis）/ Z^pld / Z^cin（trans）」の値は bird.phase に保存されるが、ハプロタイプ（Z_linked）には反映されない（app.js:265・420 だけが参照） | 利用者が入れた相が繁殖計画に届かない。選択欄からハプロタイプを組む処理を足すか、選択欄を座位ごとの相の入力に作り替える |
+| 変換済みの古い記録の相の印 | phase_known_autosomal_1 は今回から付く。以前に変換して保存された記録には無く、dark–parblue の相は変換時の仮定（変異アレルを chr1 にまとめる）のまま「確定」として扱われる | 記録を読み直して印を付け直す移行処理が要る（移行は承認が要る領域） |
 
-解決済み（2026-11-18）: planner.js のメンデル比の係数 → CROSS_TABLE。breeding.js → 削除（どこからも呼ばれていなかった）。
-定義に無い組み合わせの色名 → generateColorName と birds.js が同じ表（GENOTYPE_DATA.colorName）を使う。
-ブラウザ用 JS テスト → scripts/browser-test として agent-check と CI に載せた。
+解決済み（2026-11-18）: planner.js のメンデル比の係数 → CROSS_TABLE。連鎖する組 → LINKED_CROSS_TABLE（相が不明なら並べ方の平均と幅）。
+breeding.js → 削除。定義に無い組み合わせの色名 → generateColorName と birds.js が同じ表。ブラウザ用 JS テスト → scripts/browser-test。

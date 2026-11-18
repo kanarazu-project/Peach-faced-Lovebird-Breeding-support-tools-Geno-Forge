@@ -2,7 +2,7 @@
 # ブラウザで JS を実際に動かす検査。1件でも失敗すれば NG・終了コード 1。
 #   1. debug_test.php?run_tests=1 の JS テスト（bv / hg / bp の一覧）に失敗が無く、件数が 0 でない
 #   2. debug_test.php と index.php でページのエラー（pageerror・console.error）が出ない
-#   3. index.php で GenoData・CROSS_TABLE が読み込まれ、色名・繁殖計画の確率が正本の表で計算できる
+#   3. index.php で GenoData・CROSS_TABLE が読み込まれ、色名・繁殖計画の確率（連鎖の cis/trans を含む）が正本の表で計算できる
 # Playwright（node から require('playwright')）と Chromium が要る。無い環境では SKIP して 0 を返す。
 # BROWSER_TEST_REQUIRED=1（CI）のときは、無ければ NG にする。
 root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
@@ -60,12 +60,17 @@ const base = process.env.BASE, ng = [];
     if (typeof GenoData === 'undefined' || typeof BreedingPlanner === 'undefined' || typeof BirdDB === 'undefined') return out;
     const bird = (c, sex) => ({ sex, genotype: GenoData.colorGenotype(c, sex) });
     out.seagreen = BreedingPlanner.calculateTargetProbability(bird('turquoise', 'male'), bird('aqua', 'female'), BreedingPlanner.TARGET_REQUIREMENTS.seagreen);
+    const z = (z1, z2) => ({ sex: 'male', genotype: { Z_linked: { Z1: z1, Z2: z2 } } });
+    const wildF = { sex: 'female', genotype: {} }, oc = BreedingPlanner.TARGET_REQUIREMENTS.opaline_cinnamon_green;
+    out.cis = BreedingPlanner.calculateTargetProbability(z({ cinnamon: 'cin', opaline: 'op' }, {}), wildF, oc);
+    out.trans = BreedingPlanner.calculateTargetProbability(z({ cinnamon: 'cin' }, { opaline: 'op' }), wildF, oc);
     out.name = BirdDB.composeColorName({ parblue: 'aqaq', dark: 'Dd', pied_dom: 'Pi+', fallow_bronze: 'flbflb' }, 'en');
     return out;
   });
   if (app.GenoData !== 'object') ng.push('index.php: GenoData が無い');
   if (app.CROSS_TABLE !== 'object') ng.push('index.php: CROSS_TABLE が無い');
   if (app.seagreen === undefined || Math.abs(app.seagreen - 1) > 1e-9) ng.push(`index.php: turquoise × aqua → seagreen の確率が 1 でない（${app.seagreen}）`);
+  if (!(Math.abs(app.cis - 0.172) < 1e-9 && Math.abs(app.trans - 0.078) < 1e-9)) ng.push(`index.php: 連鎖（cin–op）の cis/trans が PHP と違う（${app.cis} / ${app.trans}）`);
   if (app.name !== 'Bronze Fallow Dominant Pied Aqua Dark') ng.push(`index.php: 色名の組み立てが PHP と違う（${app.name}）`);
   for (const e of ix.errors) ng.push('index.php ' + e);
   await browser.close();

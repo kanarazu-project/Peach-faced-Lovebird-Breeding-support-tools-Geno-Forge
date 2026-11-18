@@ -3237,6 +3237,69 @@ class GeneticsCalculator
     }
 
     /**
+     * 連鎖する組（LINKAGE_GROUPS）ごとの交配表。親のハプロタイプの組から、組換え率を使って子の分布を出す
+     * （calculateOffspring と同じ calcZLinkedV7 / calcAutosomal1V7）。index.php が LINKED_CROSS_TABLE として注入し、
+     * JS は GenoData.linkedProbability で引く。子は座位ごとの正規の遺伝子型の組（loci の順に sep でつなぐ）で表す。
+     * @return array [組] => ['loci', 'sep', 'pairSep', 'sexLinked', 'cross' => [父の鍵][母の鍵] => ['male' => [子の組 => 確率], 'female' => [...]]]
+     */
+    public static function linkedCrossTable(): array
+    {
+        static $cache = null;
+        if ($cache !== null) return $cache;
+        $calc = new self();
+        $sep = '|'; $pairSep = '/';
+        $table = [];
+        foreach (AgapornisLoci::LINKAGE_GROUPS as $group => $cfg) {
+            $loci = $cfg['loci'];
+            $sexLinked = (bool)(AgapornisLoci::LOCI[$loci[0]]['sex_linked'] ?? false);
+            // すべてのハプロタイプ（座位ごとのアレルの組み合わせ）
+            $haps = [[]];
+            foreach ($loci as $l) {
+                $next = [];
+                foreach ($haps as $h) foreach (array_keys(AgapornisLoci::LOCI[$l]['alleles']) as $a) $next[] = $h + [$l => (string)$a];
+                $haps = $next;
+            }
+            $key = fn(array $h) => implode($sep, array_map(fn($l) => $h[$l], $loci));
+            $pairs = [];
+            foreach ($haps as $i => $h1) {
+                foreach ($haps as $j => $h2) {
+                    if ($j < $i) continue;
+                    $k = [$key($h1), $key($h2)]; usort($k, 'strcmp');
+                    $pairs[implode($pairSep, $k)] = [$h1, $h2];
+                }
+            }
+            $females = $sexLinked ? array_combine(array_map($key, $haps), array_map(fn($h) => [$h], $haps)) : $pairs;
+            $tuple = function (string $genoKey, string $sex) use ($calc, $group, $loci, $sep) {
+                $g = $calc->convertToGenotypeArrayV7([$group => $genoKey], $sex);
+                return implode($sep, array_map(fn($l) => AgapornisLoci::canonicalGenotype($l, $g[$l]), $loci));
+            };
+            $cross = [];
+            foreach ($pairs as $mk => [$m1, $m2]) {
+                foreach ($females as $fk => $f) {
+                    $out = ['male' => [], 'female' => []];
+                    if ($sexLinked) {
+                        $res = $calc->calcZLinkedV7($m1, $m2, $f[0]);
+                        foreach (['male', 'female'] as $sex) {
+                            foreach ($res[$sex] as $gk => $p) { $t = $tuple($gk, $sex); $out[$sex][$t] = ($out[$sex][$t] ?? 0) + $p; }
+                        }
+                    } else {
+                        foreach ($calc->calcAutosomal1V7($m1, $m2, $f[0], $f[1]) as $gk => $p) {
+                            foreach (['male', 'female'] as $sex) { $t = $tuple($gk, $sex); $out[$sex][$t] = ($out[$sex][$t] ?? 0) + $p; }
+                        }
+                    }
+                    foreach ($out as $sex => $dist) {
+                        $total = array_sum($dist);
+                        foreach ($dist as $t => $p) $out[$sex][$t] = round($p / $total, 10);
+                    }
+                    $cross[$mk][$fk] = $out;
+                }
+            }
+            $table[$group] = ['loci' => $loci, 'sep' => $sep, 'pairSep' => $pairSep, 'sexLinked' => $sexLinked, 'cross' => $cross];
+        }
+        return $cache = $table;
+    }
+
+    /**
      * 全座位・全組み合わせの交配表（index.php が CROSS_TABLE として注入。JS は GenoData.cross で引く）
      * @return array [座位][父の遺伝子型][母の遺伝子型] => ['male' => [...], 'female' => [...]]
      */

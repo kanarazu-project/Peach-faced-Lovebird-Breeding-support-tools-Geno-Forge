@@ -4,6 +4,7 @@
 #   2. guardian.js _getINOTypeName: パーブルーごとの INO 色が GENOTYPE_DATA.inoTypes と一致する
 #   3. planner.js  TARGET_REQUIREMENTS が GENOTYPE_DATA.targets そのものであり、isCompatibleSplit が ino と pld を区別する
 #   4. genodata.js 全座位の全表記で、canonical / isWild / wildGenotype が PHP の表と一致する
+#   7. planner.js  連鎖する組: 親のハプロタイプ（cis / trans）からの確率が PHP の calculateOffspring と一致し、相が不明なら cis と trans の平均になる
 #   6. birds.js  composeColorName: 定義に無い組み合わせの色名が PHP の generateColorName と一致する（日本語・英語）
 #   5. planner.js  calculateTargetProbability が、色の定義どおりの親の交配で PHP の calculateOffspring と同じ確率を返す
 root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
@@ -12,7 +13,20 @@ command -v node >/dev/null 2>&1 || { echo "NG   js-check: node が無い"; exit 
 tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
 php -r 'require "genetics.php"; echo json_encode(["COLOR_MASTER" => AgapornisLoci::COLOR_DEFINITIONS, "LOCI_MASTER" => AgapornisLoci::LOCI,
   "GENOTYPE_DATA" => AgapornisLoci::genotypeData(), "RECOMBINATION_RATES" => AgapornisLoci::RECOMBINATION_RATES,
-  "CROSS_TABLE" => GeneticsCalculator::crossTable(), "PROB_CASES" => array_map(function ($c) {
+  "CROSS_TABLE" => GeneticsCalculator::crossTable(), "LINKED_CROSS_TABLE" => GeneticsCalculator::linkedCrossTable(),
+  "LINK_CASES" => array_map(function ($c) {
+    [$name, $target, $male, $female] = $c; $in = ["no_filter" => 1];
+    foreach (["f" => $male, "m" => $female] as $pre => $g) foreach ($g as $k => $v) $in[$pre . "_" . $k] = $v;
+    $p = 0; foreach ((new GeneticsCalculator())->calculateOffspring($in)["phenotype"] as $r) if ($r["colorKey"] === $target) $p += $r["probability"];
+    return [$name, $target, $male, $female, $p];
+  }, [
+    ["cin-op cis", "opaline_cinnamon_green", ["Z_linked" => ["Z1" => ["cinnamon" => "cin", "ino" => "+", "opaline" => "op"], "Z2" => ["cinnamon" => "+", "ino" => "+", "opaline" => "+"]]], []],
+    ["cin-op trans", "opaline_cinnamon_green", ["Z_linked" => ["Z1" => ["cinnamon" => "cin", "ino" => "+", "opaline" => "+"], "Z2" => ["cinnamon" => "+", "ino" => "+", "opaline" => "op"]]], []],
+    ["dark-parblue cis", "aqua_dark", ["autosomal_1" => ["chr1" => ["dark" => "D", "parblue" => "aq"], "chr2" => ["dark" => "d", "parblue" => "+"]]],
+      ["autosomal_1" => ["chr1" => ["dark" => "d", "parblue" => "aq"], "chr2" => ["dark" => "d", "parblue" => "aq"]]]],
+    ["dark-parblue trans", "aqua_dark", ["autosomal_1" => ["chr1" => ["dark" => "D", "parblue" => "+"], "chr2" => ["dark" => "d", "parblue" => "aq"]]],
+      ["autosomal_1" => ["chr1" => ["dark" => "d", "parblue" => "aq"], "chr2" => ["dark" => "d", "parblue" => "aq"]]]],
+  ]), "PROB_CASES" => array_map(function ($c) {
     [$target, $mc, $fc] = $c; $in = ["no_filter" => 1]; $by = AgapornisLoci::genotypeData()["byColor"];
     foreach (["f" => [$mc, "male"], "m" => [$fc, "female"]] as $pre => [$color, $sex])
       foreach ($by[$color][$sex] as $locus => $g) $in[$pre . "_" . GeneticsCalculator::LOCUS_FIELDS[$locus]] = $g;
@@ -51,6 +65,23 @@ for (const [target, mc, fc, expected] of consts.PROB_CASES) {
   const bird = (c, sex) => ({ sex, genotype: ctx.$G.colorGenotype(c, sex) });
   const got = ctx.$P.calculateTargetProbability(bird(mc, 'male'), bird(fc, 'female'), D.targets[target]);
   check(Math.abs(got - expected) < 1e-9, `planner.calculateTargetProbability ${target} from ${mc} x ${fc}: ${got} (PHP ${expected})`);
+}
+const linkBird = (sex, g) => ({ sex, genotype: JSON.parse(JSON.stringify(g)) });
+const linkGot = {};
+for (const [name, target, male, female, expected] of consts.LINK_CASES) {
+  const got = ctx.$P.calculateTargetProbability(linkBird('male', male), linkBird('female', female), D.targets[target]);
+  linkGot[name] = got;
+  check(Math.abs(got - expected) < 1e-9, `planner linkage ${name} (${target}): ${got} (PHP ${expected})`);
+}
+// 相が不明（旧形式の座位ごとの遺伝子型）なら cis と trans の平均、幅は両者
+if (typeof ctx.$P.calculateTargetProbabilityDetail !== 'function') check(false, 'planner.calculateTargetProbabilityDetail is missing');
+else {
+  const d = ctx.$P.calculateTargetProbabilityDetail(linkBird('male', { cinnamon: '+cin', opaline: '+op' }), linkBird('female', {}), D.targets.opaline_cinnamon_green);
+  const lo = Math.min(linkGot['cin-op cis'], linkGot['cin-op trans']), hi = Math.max(linkGot['cin-op cis'], linkGot['cin-op trans']);
+  check(d.phaseUnknown && Math.abs(d.mean - (lo + hi) / 2) < 1e-9 && Math.abs(d.min - lo) < 1e-9 && Math.abs(d.max - hi) < 1e-9,
+    `planner linkage phase unknown: ${JSON.stringify(d)} (cis/trans ${lo}/${hi})`);
+  const k = ctx.$P.calculateTargetProbabilityDetail(linkBird('male', consts.LINK_CASES[0][2]), linkBird('female', {}), D.targets.opaline_cinnamon_green);
+  check(!k.phaseUnknown, 'planner linkage: recorded haplotypes count as known phase');
 }
 for (const [geno, expected] of consts.NAME_CASES) for (const lang of ['ja', 'en']) {
   const got = ctx.$B.composeColorName(geno, lang);

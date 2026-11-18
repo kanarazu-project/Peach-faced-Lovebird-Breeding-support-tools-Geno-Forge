@@ -211,12 +211,10 @@ const BreedingPlanner = {
     
     evaluatePairing(male, female, target, targetKey) {
         let score = this.calculateGeneScore(male, target) + this.calculateGeneScore(female, target);
-        const prob = this.calculateTargetProbability(male, female, target);
+        // 確率は連鎖の相まで含めて計算する（相が不明なら相の並べ方の平均。幅は probabilityRange）
+        const detail = this.calculateTargetProbabilityDetail(male, female, target);
+        const prob = detail.mean;
         score += prob * 100;
-
-        // v7.0: 連鎖遺伝ボーナス
-        const linkageBonus = this.calculateLinkageBonus(male, female, targetKey);
-        score += linkageBonus;
 
         // 近交係数計算
         let inbreedingCoef = 0;
@@ -289,7 +287,7 @@ const BreedingPlanner = {
             warnings,
             recommendation,
             targetKey,  // v6.7.5: targetKeyを保持
-            linkageBonus,  // v7.0: 連鎖ボーナス
+            probabilityRange: detail.phaseUnknown ? { min: detail.min, max: detail.max } : null,
             maleGenes: { hasRequired: [], carrierOf: [], missing: [] },
             femaleGenes: { hasRequired: [], carrierOf: [], missing: [] }
         };
@@ -359,27 +357,107 @@ const BreedingPlanner = {
         return score;
     },
 
-    /**
-     * 子が目標の色になる確率。座位ごとの確率は CROSS_TABLE（PHP の GeneticsCalculator が計算）から引き、
-     * 雌雄それぞれで座位の確率を掛け合わせて平均する。連鎖（dark–parblue、Z 上の cin–ino–op）の相は
-     * 個体の記録から決まらないため座位を独立として扱う（docs/ssot.md 4 を参照）。
-     */
+    /** 子が目標の色になる確率（相が不明な親は、相の並べ方の平均） */
     calculateTargetProbability(male, female, target) {
+        return this.calculateTargetProbabilityDetail(male, female, target).mean;
+    },
+
+    /**
+     * 子が目標の色になる確率の詳細 {mean, min, max, phaseUnknown}。
+     * 独立した座位は CROSS_TABLE、連鎖する組（Z 上の cin–ino–op、dark–parblue）は LINKED_CROSS_TABLE から引く。
+     * どちらも PHP の GeneticsCalculator が計算した表で、JS は雌雄ごとに組どうしを掛け、雌雄を平均するだけ。
+     * 親の相が記録に無い組は、相の並べ方を等しい重みで並べ、平均を mean、最小・最大を min・max とする。
+     */
+    calculateTargetProbabilityDetail(male, female, target) {
         const mGeno = male.genotype || {}, fGeno = female.genotype || {};
-        const bySex = {};
-        for (const sex of ['male', 'female']) {
-            let p = 1;
-            for (const [locus, vals] of Object.entries(target.required)) {
-                p *= GenoData.crossProbability(locus, mGeno[locus], fGeno[locus], vals, sex);
-            }
-            for (const [slrKey, vals] of Object.entries(target.slr)) {
-                p *= GenoData.crossProbability(this._slrLocus(slrKey),
-                    this.getSLRGenotypeFromZLinked(mGeno, slrKey, 'male'),
-                    this.getSLRGenotypeFromZLinked(fGeno, slrKey, 'female'), vals, sex);
-            }
-            bySex[sex] = p;
+        const want = { ...target.required };
+        for (const [slrKey, vals] of Object.entries(target.slr)) want[this._slrLocus(slrKey)] = vals;
+
+        const groups = (typeof LINKED_CROSS_TABLE !== 'undefined') ? Object.keys(LINKED_CROSS_TABLE) : [];
+        const linked = new Set(groups.flatMap(g => GenoData.linkedGroup(g).loci));
+        const usedGroups = groups.filter(g => GenoData.linkedGroup(g).loci.some(l => want[l]));
+
+        // 独立した座位
+        let combos = [{ w: 1, male: 1, female: 1 }];
+        for (const locus of Object.keys(want).filter(l => !linked.has(l))) {
+            const mv = this._locusGenotype(mGeno, locus, 'male'), fv = this._locusGenotype(fGeno, locus, 'female');
+            combos[0].male *= GenoData.crossProbability(locus, mv, fv, want[locus], 'male');
+            combos[0].female *= GenoData.crossProbability(locus, mv, fv, want[locus], 'female');
         }
-        return (bySex.male + bySex.female) / 2;
+        // 連鎖する組（相の並べ方ごとに分ける）
+        for (const group of usedGroups) {
+            const gWant = {};
+            for (const l of GenoData.linkedGroup(group).loci) if (want[l]) gWant[l] = want[l];
+            const mOpts = this._haplotypeOptions(mGeno, group, 'male');
+            const fOpts = this._haplotypeOptions(fGeno, group, 'female');
+            const next = [];
+            for (const c of combos) for (const mo of mOpts) for (const fo of fOpts) {
+                const q = sex => GenoData.linkedProbability(group, mo.haps, fo.haps, gWant, sex) || 0;
+                next.push({ w: c.w * mo.w * fo.w, male: c.male * q('male'), female: c.female * q('female') });
+            }
+            combos = next;
+        }
+        const values = combos.map(c => ({ w: c.w, v: (c.male + c.female) / 2 }));
+        return {
+            mean: values.reduce((a, x) => a + x.w * x.v, 0),
+            min: Math.min(...values.map(x => x.v)),
+            max: Math.max(...values.map(x => x.v)),
+            phaseUnknown: values.length > 1
+        };
+    },
+
+    /**
+     * 個体の座位の遺伝子型（正規の表記）。座位キー、繁殖計画の伴性キー（cin・op）、旧形式の _legacy の順に探し、無ければ野生型。
+     */
+    _locusGenotype(geno, locus, sex) {
+        const keys = GENOTYPE_DATA.plannerSlrKeys;
+        const slrKey = Object.keys(keys).find(k => keys[k] === locus);
+        const legacy = geno._legacy || {};
+        const raw = geno[locus] || (slrKey && geno[slrKey]) || legacy[locus] || (slrKey && legacy[slrKey]);
+        return GenoData.canonical(locus, raw || GenoData.wildGenotype(locus, sex));
+    },
+
+    /**
+     * 親の連鎖する組のハプロタイプの候補 [{haps, w}]。
+     * 記録にハプロタイプ（Z_linked.Z1/Z2・autosomal_1.chr1/chr2）があり相が確定していればその1通り。
+     * 相が未確定（phase_known / phase_known_autosomal_1 が false）か、座位ごとの遺伝子型しか無いときは、
+     * ヘテロの座位のアレルの並べ方をすべて等しい重みで返す（ヘテロが1座位以下なら1通り）。
+     */
+    _haplotypeOptions(geno, group, sex) {
+        const g = GenoData.linkedGroup(group);
+        const hemi = g.sexLinked && sex === 'female';
+        const wild = l => (GenoData.alleles(l, GenoData.wildGenotype(l, 'male')) || [])[0];
+        const store = geno[group] || {};
+        const first = store.Z1 || store.chr1, second = store.Z2 || store.chr2;
+        let pairs;
+        if (first) {
+            const h1 = {}, h2 = {};
+            for (const l of g.loci) { h1[l] = first[l] || wild(l); h2[l] = (second && second[l]) || wild(l); }
+            if (hemi) return [{ haps: [h1], w: 1 }];
+            const flag = group === 'Z_linked' ? geno.phase_known : geno.phase_known_autosomal_1;
+            if (flag !== false) return [{ haps: [h1, h2], w: 1 }];
+            pairs = g.loci.map(l => [h1[l], h2[l]]);
+        } else {
+            pairs = g.loci.map(l => {
+                const a = GenoData.alleles(l, this._locusGenotype(geno, l, sex)) || [wild(l), wild(l)];
+                return hemi ? [a[0]] : [a[0], a.length > 1 ? a[1] : a[0]];
+            });
+            if (hemi) return [{ haps: [Object.fromEntries(g.loci.map((l, i) => [l, pairs[i][0]]))], w: 1 }];
+        }
+        const het = pairs.map((p, i) => (p[0] !== p[1] ? i : -1)).filter(i => i >= 0);
+        const n = Math.max(0, het.length - 1);
+        const options = [];
+        for (let mask = 0; mask < (1 << n); mask++) {
+            const h1 = {}, h2 = {};
+            g.loci.forEach((l, i) => {
+                const k = het.indexOf(i);
+                const flip = k > 0 && (mask >> (k - 1)) & 1;
+                h1[l] = flip ? pairs[i][1] : pairs[i][0];
+                h2[l] = flip ? pairs[i][0] : pairs[i][1];
+            });
+            options.push({ haps: [h1, h2], w: 1 / (1 << n) });
+        }
+        return options;
     },
 
     // v7.0: 翻訳対応
@@ -544,81 +622,6 @@ const BreedingPlanner = {
         }
 
         return { phase: 'unknown', note: this._t('bp_phase_no_info', '相情報なし') };
-    },
-
-    /**
-     * v7.0: 連鎖を考慮したスコアボーナス
-     * Cis配置の個体には追加スコア
-     */
-    calculateLinkageBonus(male, female, targetKey) {
-        let bonus = 0;
-
-        const mPhase = this.evaluateLinkagePhase(male, targetKey);
-        const fPhase = this.evaluateLinkagePhase(female, targetKey);
-
-        // オスのCis配置にボーナス（オスの相が効率に影響）
-        if (mPhase.available && mPhase.Z_linked) {
-            if (mPhase.Z_linked.phase === 'cis' || mPhase.Z_linked.phase === 'cis_inferred') {
-                bonus += 50;  // Cis優位性ボーナス
-            } else if (mPhase.Z_linked.phase === 'trans') {
-                bonus -= 30;  // Trans非効率ペナルティ
-            }
-        }
-
-        // 常染色体も同様
-        if (mPhase.available && mPhase.autosomal_1) {
-            if (mPhase.autosomal_1.phase === 'cis') {
-                bonus += 30;
-            }
-        }
-
-        return bonus;
-    },
-
-    /**
-     * v7.0: 連鎖を考慮した確率修正
-     * @param {number} baseProb - 基本確率（独立分離仮定）
-     * @param {Object} male - オス個体
-     * @param {string} targetKey - 目標色
-     * @returns {number} 修正後確率
-     */
-    adjustProbabilityForLinkage(baseProb, male, targetKey) {
-        if (typeof RECOMBINATION_RATES === 'undefined') {
-            return baseProb;
-        }
-
-        const mPhase = this.evaluateLinkagePhase(male, targetKey);
-        if (!mPhase.available) return baseProb;
-
-        // Z連鎖の修正
-        if (mPhase.Z_linked && mPhase.Z_linked.phase !== 'not_applicable') {
-            const target = this.TARGET_REQUIREMENTS[targetKey];
-            const slr = target?.slr || {};
-
-            // cin + ino 両方必要な場合（Lacewing系）
-            if (slr.ino && slr.cin) {
-                const rate = RECOMBINATION_RATES['cinnamon-ino'];   // 正本: genetics.php（index.php が注入）
-                if (mPhase.Z_linked.phase === 'cis' || mPhase.Z_linked.phase === 'cis_inferred') {
-                    // Cis: 97%が連鎖遺伝
-                    baseProb *= (1 - rate);
-                } else if (mPhase.Z_linked.phase === 'trans') {
-                    // Trans: 3%でしか揃わない
-                    baseProb *= rate;
-                }
-            }
-
-            // ino + opaline 両方必要な場合
-            if (slr.ino && slr.op) {
-                const rate = RECOMBINATION_RATES['ino-opaline'];    // 正本: genetics.php（index.php が注入）
-                if (mPhase.Z_linked.phase === 'cis' || mPhase.Z_linked.phase === 'cis_inferred') {
-                    baseProb *= (1 - rate);
-                } else if (mPhase.Z_linked.phase === 'trans') {
-                    baseProb *= rate;
-                }
-            }
-        }
-
-        return baseProb;
     },
 
     /**
@@ -1129,8 +1132,8 @@ const BreedingPlanner = {
                         ic = BreedingValidator.calcInbreedingCoefficient(m, f);
                     }
                     if (ic < this.INBREEDING_THRESHOLD) {
-                        const prob = GenoData.crossProbability(goal.locus, (m.genotype || {})[goal.locus],
-                            (f.genotype || {})[goal.locus], goal.required || [goal.targetValue]);
+                        const prob = GenoData.crossProbability(goal.locus, this._locusGenotype(m.genotype || {}, goal.locus, 'male'),
+                            this._locusGenotype(f.genotype || {}, goal.locus, 'female'), goal.required || [goal.targetValue]);
                         pairings.push({
                             male: m,
                             female: f,
@@ -1689,7 +1692,7 @@ function runPlanner() {
                         html += `<div class="pairing-card" style="background: #f8f9fa !important; padding: 10px; margin: 5px 0; border-radius: 5px; color: #333 !important;">`;
                         html += `<div class="pairing-header" style="color: #333 !important; font-weight: bold;">#${i+1} ♂${p.male.name} × ♀${p.female.name}</div>`;
                         const icLabel = p.isEstimatedIC ? `${_t('bp_f_value', 'F-value')}: ${icPercent}% (${_t('bp_estimated', '推定')})` : `${_t('bp_f_value', 'F-value')}: ${icPercent}%`;
-                        html += `<div class="pairing-stats" style="color: #333 !important;">${_t('bp_probability', 'Probability')}: ${((p.probability || 0)*100).toFixed(1)}% | <span style="color: ${icColor} !important; font-weight: bold;">${icLabel}</span></div>`;
+                        html += `<div class="pairing-stats" style="color: #333 !important;">${_t('bp_probability', 'Probability')}: ${((p.probability || 0)*100).toFixed(1)}%${p.probabilityRange ? ` (? ${(p.probabilityRange.min*100).toFixed(1)}–${(p.probabilityRange.max*100).toFixed(1)}%)` : ''} | <span style="color: ${icColor} !important; font-weight: bold;">${icLabel}</span></div>`;
                         if (p.recommendation) {
                             html += `<div class="pairing-recommendation" style="color: #495057 !important;">${p.recommendation}</div>`;
                         }

@@ -619,6 +619,8 @@ const PEDIGREE_DATA = <?= json_encode(GenotypeEstimator::pedigreeData()) ?>;
 const GENOTYPE_DATA = <?= json_encode(AgapornisLoci::genotypeData()) ?>;
 // 座位ごとの交配表（GeneticsCalculator が計算）。繁殖計画の確率はこれを引く（SSOT）
 const CROSS_TABLE = <?= json_encode(GeneticsCalculator::crossTable()) ?>;
+// 連鎖する組（Z 上の cin–ino–op、dark–parblue）の交配表。親のハプロタイプから組換え率込みで計算（SSOT）
+const LINKED_CROSS_TABLE = <?= json_encode(GeneticsCalculator::linkedCrossTable()) ?>;
 const INDEPENDENT_LOCI = <?= json_encode(AgapornisLoci::INDEPENDENT_LOCI) ?>;
 </script>
 </head>

@@ -1544,7 +1544,6 @@ const BirdDB = {
             const ordered = (alleles.length === 2 && alleles[0] === w && alleles[1] !== w) ? [alleles[1], alleles[0]] : alleles;
             return { a1: ordered[0], a2: ordered.length === 2 ? ordered[1] : null };
         };
-        const isMutant = (locusKey, allele) => !!allele && allele !== wildAlleleOf(locusKey);
 
         // Z連鎖座位
         const cin = toPair('cinnamon', oldGenotype.cin);
@@ -1583,12 +1582,13 @@ const BirdDB = {
             chr2: { dark: dark.a2, parblue: parblue.a2 }
         };
 
-        // 相の確定状態を記録
-        const hasMultipleZMutations =
-            (isMutant('cinnamon', cin.a1) || isMutant('cinnamon', cin.a2)) &&
-            (isMutant('ino', ino.a1) || isMutant('ino', ino.a2) || isMutant('opaline', op.a1) || isMutant('opaline', op.a2));
+        // 相の確定状態を記録（旧形式は相を持たないので、ヘテロの座位が2つ以上ある組は未確定。繁殖計画は並べ方の平均を使う）
+        const isHet = pair => !!pair.a2 && pair.a1 !== pair.a2;
+        const zHet = [cin, ino, op].filter(isHet).length;
+        const aHet = [dark, parblue].filter(isHet).length;
 
-        const phaseKnown = isLacewing || !hasMultipleZMutations;
+        const phaseKnown = isLacewing || zHet < 2;
+        const phaseKnownAutosomal1 = aHet < 2;
 
         // 新形式の遺伝型を構築
         // 独立座位は旧形式を維持（キー名を正規化）
@@ -1612,6 +1612,7 @@ const BirdDB = {
 
             // 相の確定状態
             phase_known: phaseKnown,
+            phase_known_autosomal_1: phaseKnownAutosomal1,
 
             // 後方互換性のため旧キーも維持（読み取り専用）
             _legacy: {

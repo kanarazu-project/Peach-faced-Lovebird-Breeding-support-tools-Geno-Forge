@@ -1,6 +1,6 @@
 /**
  * Agapornis Gene-Forge — genodata.js
- * 遺伝の事実の引き出し（GENOTYPE_DATA・CROSS_TABLE の表引きだけを行う）
+ * 遺伝の事実の引き出し（GENOTYPE_DATA・CROSS_TABLE・LINKED_CROSS_TABLE の表引きだけを行う）
  *
  * 整合性原理（SSOT）:
  * - 遺伝の事実と判定規則は genetics.php にだけある（AgapornisLoci::genotypeData()）
@@ -93,6 +93,39 @@ const GenoData = {
         const want = new Set((vals || []).map(v => this.canonical(locusKey, v)));
         const p = s => Object.entries(c[s] || {}).reduce((a, [g, q]) => a + (want.has(g) ? q : 0), 0);
         return sex ? p(sex) : (p('male') + p('female')) / 2;
+    },
+
+    /** 連鎖する組の表（LINKED_CROSS_TABLE。PHP の GeneticsCalculator::linkedCrossTable が計算）。無ければ null */
+    linkedGroup(group) {
+        return (typeof LINKED_CROSS_TABLE !== 'undefined') ? (LINKED_CROSS_TABLE[group] || null) : null;
+    },
+
+    /** ハプロタイプ {座位: アレル} の鍵（表の loci の順に sep でつなぐ）。欠けたアレルは野生型 */
+    haplotypeKey(group, haplotype) {
+        const g = this.linkedGroup(group);
+        if (!g) return null;
+        return g.loci.map(l => (haplotype && haplotype[l]) || (this.alleles(l, this.wildGenotype(l, 'male')) || [])[0]).join(g.sep);
+    },
+
+    /**
+     * 親のハプロタイプから、子の連鎖する座位の遺伝子型が want を満たす確率（性別 sex の子のうち）。
+     * maleHaps はオスの2本、femaleHaps はメスの1本（伴性）か2本。want は {座位: [遺伝子型...]}（載っていない座位は問わない）。
+     * 表に無い組は null。
+     */
+    linkedProbability(group, maleHaps, femaleHaps, want, sex) {
+        const g = this.linkedGroup(group);
+        if (!g) return null;
+        const mk = maleHaps.map(h => this.haplotypeKey(group, h)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).join(g.pairSep);
+        const fk = femaleHaps.map(h => this.haplotypeKey(group, h)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).join(g.pairSep);
+        const dist = ((g.cross[mk] || {})[fk] || {})[sex];
+        if (!dist) return null;
+        const wantSets = g.loci.map(l => want[l] ? new Set(want[l].map(v => this.canonical(l, v))) : null);
+        let p = 0;
+        for (const [tuple, q] of Object.entries(dist)) {
+            const parts = tuple.split(g.sep);
+            if (wantSets.every((w, i) => !w || w.has(parts[i]))) p += q;
+        }
+        return p;
     },
 
     /** 変異アレルを1つ持つ保因の遺伝子型（targetGenotype の変異アレルと野生型アレルの組。伴性メスはヘミ接合） */

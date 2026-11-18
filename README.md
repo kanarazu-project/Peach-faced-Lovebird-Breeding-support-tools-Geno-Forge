@@ -99,11 +99,12 @@ genetics.php (SSOT)
     ├─ GenotypeEstimator::pedigreeData() (wild types, academic notation, confidence table)
     ├─ AgapornisLoci::genotypeData() (genotype table, colour genotypes, planner targets, colour keys, colour-name rules)
     ├─ GeneticsCalculator::crossTable() (per-locus offspring distributions for the planner)
+    ├─ GeneticsCalculator::linkedCrossTable() (offspring per parental haplotype pair, with recombination)
     │
     └─→ index.php → JS constant injection → genodata.js (lookup helper) → JS files
 ```
 
-Genotype strings and genetic rules live only in `genetics.php`. JavaScript holds no copy of a genetic rule: when it needs a fact or a result, PHP computes a table and `index.php` injects it (`GENOTYPE_DATA`, `PEDIGREE_DATA`, `CROSS_TABLE`). JS reads it through `genodata.js`, asking by locus and allele names (`GenoData.isWild('dark', g)`, `GenoData.dose('fallow_pale', g)`). Other PHP files call `AgapornisLoci` instead of writing genotypes. Bird records (demo and sample data) sit inside `ssot-data:begin` / `ssot-data:end` blocks and are checked against the canonical notation.
+Genotype strings and genetic rules live only in `genetics.php`. JavaScript holds no copy of a genetic rule: when it needs a fact or a result, PHP computes a table and `index.php` injects it (`GENOTYPE_DATA`, `PEDIGREE_DATA`, `CROSS_TABLE`, `LINKED_CROSS_TABLE`). JS reads it through `genodata.js`, asking by locus and allele names (`GenoData.isWild('dark', g)`, `GenoData.dose('fallow_pale', g)`). Other PHP files call `AgapornisLoci` instead of writing genotypes. Bird records (demo and sample data) sit inside `ssot-data:begin` / `ssot-data:end` blocks and are checked against the canonical notation.
 
 `scripts/agent-check` enforces this rule:
 - `scripts/ssot-literal-check` reads its vocabulary from `genetics.php` and flags every genotype literal outside it.
@@ -282,17 +283,22 @@ minGenerations = 0                                     (wild type)
 
 This is the minimum *for this plan*. Shorter routes, such as pairing two expressing birds directly, are not counted.
 
-### Breeding planner probability (`planner.js` + `CROSS_TABLE`)
+### Breeding planner probability (`planner.js` + `CROSS_TABLE` + `LINKED_CROSS_TABLE`)
 
 The planner does not apply its own Mendelian ratios. `GeneticsCalculator::crossTable()` runs `calculateOffspring()` for every locus and every male × female genotype pair (156 pairs), and records the offspring distribution for each sex. `index.php` injects it as `CROSS_TABLE`; `GenoData.cross()` / `GenoData.crossProbability()` look it up.
 
+Linked loci are not split into separate loci. `GeneticsCalculator::linkedCrossTable()` takes every pair of parental haplotypes for each linkage group (cinnamon–ino–opaline on Z: 78 male pairs × 12 female haplotypes; dark–parblue: 21 × 21) and runs the same gamete calculation as `calculateOffspring()` (`calcZLinkedV7` / `calcAutosomal1V7`, with the recombination rates). It records the offspring genotypes per sex. `index.php` injects it as `LINKED_CROSS_TABLE` (about 240 KB); `GenoData.linkedProbability()` looks it up.
+
 ```
-P(target) = ½ · Π P_male(locus in target) + ½ · Π P_female(locus in target)
+P(target) = ½ · Π_groups P_male(group in target) + ½ · Π_groups P_female(group in target)
+            (each independent locus is its own group)
 ```
 
 Examples: turquoise ♂ × aqua ♀ → seagreen 100% (the old coefficients gave 25%); seagreen × seagreen → green 0% (old: 25%); olive × green → dark green 100% (old: 0%); split-ino ♂ × green ♀ → lutino 25% of all chicks (all of them daughters). The intermediate goals of multi-generation plans (carrier × carrier, split ♂ × wild ♀) and the pairings proposed for them take their probabilities from the same table.
 
-Limitation: loci are multiplied as independent. The planner does not know the phase of linked loci (dark–parblue, cinnamon–ino–opaline on Z) from a bird's record, so recombination is not applied here. The offspring calculator tab applies it.
+**Phase.** The haplotypes come from the bird's record (`Z_linked.Z1/Z2`, `autosomal_1.chr1/chr2`). Example, opaline cinnamon green from a male carrying cinnamon and opaline × a green hen: cis 17.2%, trans 7.8% (the old independent product gave 12.5% for both). Dark–parblue: `D aq / d +` × aqua → aqua dark 46.5% (cis), 3.5% (trans).
+
+When the phase is not recorded, every phase arrangement of the heterozygous loci gets the same weight. This covers records in the old per-locus format, and converted records flagged `phase_known: false` / `phase_known_autosomal_1: false` when two or more linked loci are heterozygous. The planner ranks pairs by the mean and shows the range next to the probability, e.g. `12.5% (? 7.8–17.2%)`. The former cis/trans score bonus was removed, because the probability now includes the phase.
 
 ### Names of colour combinations not in `COLOR_DEFINITIONS`
 
@@ -342,14 +348,14 @@ Comprehensive test suite covering all genetic calculations and integrations.
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 128 (PHP 98 + JS 30) |
+| Total Tests | 129 (PHP 99 + JS 30) |
 | Pass Rate | 100% |
 | Test File | `debug_test.php` |
 
 **Test Categories:**
 - PHP Unit tests (50): Core classes, calculations, color definitions
 - PHP Integration tests (33): UI/API compatibility, SSOT integrity, i18n coverage
-- PHP Regression tests (15): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist, pedigree data built from SSOT, genotype data (canonical forms, colour signatures, planner targets, INO types), planner cross table
+- PHP Regression tests (16): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist, pedigree data built from SSOT, genotype data (canonical forms, colour signatures, planner targets, INO types), planner cross table, linked cross table (cis/trans)
 - JS Tests (30): BreedingValidator, HealthGuardian, BreedingPlanner
 
 Run tests via browser: `debug_test.php?run_tests=1` (PHP and JS tests), or on the command line: `bash scripts/agent-check`. It runs the Skill routing check, the rule table, the PHP tests, the pedigree PHP/JS match check, the SSOT literal check, the JS/PHP match check and the browser test. The browser test needs Playwright with Chromium; without it, it prints `SKIP` locally. CI installs them and sets `BROWSER_TEST_REQUIRED=1`, so a missing browser fails there.

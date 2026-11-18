@@ -2182,6 +2182,28 @@ if ($runTests) {
         return [!$failed, $failed ? 'NG: ' . implode(' / ', array_slice($failed, 0, 5)) : count($known) . ' known values + all pairs OK'];
     });
 
+    // Test 22-16: 連鎖する組の交配表（LINKED_CROSS_TABLE）が組換え率込みで作られている
+    $reg('Linked cross table: all haplotype pairs, per-sex totals 1, cis/trans recombination', function () {
+        $t = GeneticsCalculator::linkedCrossTable();
+        $bad = [];
+        foreach ($t as $group => $g) {
+            foreach ($g['cross'] as $mk => $row) foreach ($row as $fk => $d) foreach (['male', 'female'] as $sex) {
+                if (abs(array_sum($d[$sex]) - 1) > 1e-6) $bad[] = "$group $mk x $fk $sex";
+            }
+        }
+        $z = $t['Z_linked']['cross']; $a = $t['autosomal_1']['cross'];
+        $known = [
+            'Z: 78 male pairs x 12 female haplotypes' => count($z) === 78 && count(reset($z)) === 12,
+            'A1: 21 x 21 pairs' => count($a) === 21 && count(reset($a)) === 21,
+            'cin-ino cis: cinW|inoW daughters 48.5%' => abs(($z['+|+|+/cin|ino|+']['+|+|+']['female']['cinW|inoW|+W'] ?? 0) - 0.485) < 1e-9,
+            'cin-ino trans: cinW|inoW daughters 1.5%' => abs(($z['+|ino|+/cin|+|+']['+|+|+']['female']['cinW|inoW|+W'] ?? 0) - 0.015) < 1e-9,
+            'dark-parblue cis: Dd|+aq 46.5%' => abs(($a['D|aq/d|+']['d|+/d|+']['male']['Dd|+aq'] ?? 0) - 0.465) < 1e-9,
+            'dark-parblue trans: Dd|+aq 3.5%' => abs(($a['D|+/d|aq']['d|+/d|+']['male']['Dd|+aq'] ?? 0) - 0.035) < 1e-9,
+        ];
+        $failed = array_merge(array_slice($bad, 0, 5), array_keys(array_filter($known, fn($v) => !$v)));
+        return [!$failed, $failed ? 'NG: ' . implode(' / ', $failed) : count($known) . ' known values + all pairs OK'];
+    });
+
     // Test 22-7: 確信度は表現型から判別できる度合いを反映する
     $reg('GenotypeEstimator: confidence reflects what phenotype can determine', function () use ($locusOf) {
         $est = new GenotypeEstimator();
@@ -2514,6 +2536,7 @@ if ($runTests) {
     const RECOMBINATION_RATES = <?= json_encode(AgapornisLoci::RECOMBINATION_RATES) ?>;
     const GENOTYPE_DATA = <?= json_encode(AgapornisLoci::genotypeData()) ?>;
     const CROSS_TABLE = <?= json_encode(GeneticsCalculator::crossTable()) ?>;
+    const LINKED_CROSS_TABLE = <?= json_encode(GeneticsCalculator::linkedCrossTable()) ?>;
     </script>
     <script src="genodata.js"></script>
     <!-- Load JS modules for testing -->
