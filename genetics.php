@@ -345,8 +345,11 @@ final class AgapornisLoci
 
     /**
      * 国際名（ALBS の対照表の右列の書き方）の部品。この順に並べ、最後に濃さ（D / DD）と基本色を置く。
-     * allele・mode の意味は COLOR_NAME_PARTS と同じ（見た目のアレルで判定）。ALBS の対照表に無い変異
-     * （recessive pied・pale fallow・bronze fallow・dilute・pale headed）の名前は、ここで決めた呼び方。
+     * allele・mode の意味は COLOR_NAME_PARTS と同じ（見た目のアレルで判定）。ALBS の対照表に無い変異の名前の典拠:
+     *   dilute: Van den Abeele, "Agapornis roseicollis: dilute versus pallid", BVA-International Journal 2014（ogvzw.org。
+     *           BVA が国際名を導入したときに dilute を採用）
+     *   bronze fallow / pale fallow: Van den Abeele, "Fallow mysteries", BVA-International magazine 2017（ogvzw.org。国際的な取り決めの区分名）
+     *   recessive pied / pale headed: AGASSCOM Nomenclature GROUP 1 – Agapornis roseicollis（agasscom.org。他の3つも同じ名で載る）
      */
     private const INTL_NAME_PARTS = [
         ['locus' => 'opaline', 'allele' => 'op', 'mode' => 'all', 'name' => 'opaline'],

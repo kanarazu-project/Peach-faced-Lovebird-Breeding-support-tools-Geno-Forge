@@ -74,6 +74,8 @@ JS にも他の PHP にも書かない。PHP で計算した結果を注入し�
 
 | 箇所 | 中身 | 見立て |
 |---|---|---|
+| ペールヘッドの遺伝様式 | LOCI では AR（常染色体劣性）。ABE-international の遺伝表（ブリーダーの資料、典拠の記載なし）は incomplete dominant としている | 一次資料（OGVZW・Lovebirds Compendium など）で確かめるまで未確認。どちらかに決める前に確認が要る |
+| AGASSCOM に載るが扱っていない変異 | AGASSCOM Group 1 には pale（伴性、SL ino の対立遺伝子。OGVZW 2017）、gray、quartz（gray winged）がある | 座位・アレルを足すかは未判断 |
 | ALBS の Blue (True) | ALBS には Blue (True)（*blue*）の区分があるが、パーブルー座位のアレルは + / tq / aq だけで扱えない | 座位にアレルを足すか、扱わないと明記したまま残すか |
 
 解決済み（2026-11-18）: planner.js のメンデル比の係数 → CROSS_TABLE。連鎖する組 → LINKED_CROSS_TABLE（相が不明なら並べ方の平均と幅）。

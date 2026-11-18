@@ -151,6 +151,10 @@ Z染色体連鎖:
   ALBS の出陳区分（2016）に区分がある色だけ、色の定義の albs に ALBS 名を持つ（176色）。
   区分の無い色（138色）は AOC（Any Other Color）で albs は null。名前は国際名（internationalName）で表す。
     例: pale fallow green / recessive pied D aqua / cinnamon ino green
+  ALBS の対照表に無い変異の国際名の典拠:
+    dilute — Van den Abeele (2014) "Agapornis roseicollis: dilute versus pallid"（BVA が国際名を導入したときの名）
+    bronze fallow / pale fallow — Van den Abeele (2017) "Fallow mysteries"（国際的な取り決めの区分名）
+    recessive pied / pale headed — AGASSCOM Nomenclature GROUP 1 – Agapornis roseicollis（上の3つも同じ名で載る）
   AOC になる主な理由: 劣性パイド・ダイリュート・ペールファロー・ブロンズファロー・ペールヘッドは ALBS に区分が無い。
     ターコイズ・シーグリーンとの組み合わせの多くも区分が無い（例: Pied Australian Cinnamon Whitefaced Par-Blue）。
   INO の ALBS 名: Lutino / Creamino Par-Blue / Whitefaced Par-Blue Creamino / Seagreen Par-Blue Creamino
