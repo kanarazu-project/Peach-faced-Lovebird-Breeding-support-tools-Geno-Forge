@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# SSOT 検査: 遺伝子型の文字列を genetics.php 以外に書かせない。語彙は genetics.php（AgapornisLoci::genotypeData()）から読む。
+#   1. コード: genetics.php 以外の *.js / *.php で、遺伝子型の文字列リテラル（'++' 'inoW' 'EdEd' など）を出現1つずつ NG にする
+#      - コメントの中は数えない
+#      - ssot-data:begin 〜 ssot-data:end のブロック（個体の記録）は 2 で照合する
+#      - .claude/ssot-literal.tsv に載せたファイル（テスト）は対象外
+#      - 意図した例外は、その行か直前の行に lint-allow:ssot-literal と理由を書く
+#   2. データ: ブロック内の「座位: '値'」は、その座位の正規の遺伝子型かアレルであること。「baseColor: '色'」は COLOR_DEFINITIONS にあること
+# 使い方: scripts/ssot-literal-check            （全ファイル）
+#         scripts/ssot-literal-check <file>...  （渡したファイルだけ。pre-commit 用）
+root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
+command -v php >/dev/null 2>&1 || { echo "NG   ssot-literal-check: php が無い"; exit 1; }
+vocab="$(mktemp)"; trap 'rm -f "$vocab"' EXIT
+php -r '
+require "genetics.php";
+$d = AgapornisLoci::genotypeData(); $out = ["vocab" => [], "valid" => [], "colors" => array_keys(AgapornisLoci::COLOR_DEFINITIONS)];
+foreach ($d["loci"] as $locus => $l) {
+    foreach ($l["genotypes"] as $g => $_) $out["vocab"][$g] = 1;
+    $c = AgapornisLoci::canonicalGenotypes($locus);
+    $out["valid"][$locus] = array_values(array_unique(array_merge($c["male"], $c["female"], array_map("strval", array_keys(AgapornisLoci::LOCI[$locus]["alleles"])))));
+}
+$out["vocab"] = array_keys($out["vocab"]);
+echo json_encode($out);
+' > "$vocab" || { echo "NG   ssot-literal-check: 正本の語彙の取得に失敗"; exit 1; }
+exec python3 -I - "$vocab" "$@" <<'PY'
+import json, os, re, sys, glob
+data = json.load(open(sys.argv[1], encoding='utf-8'))
+only = {os.path.normpath(a) for a in sys.argv[2:]}
+allowed = {}
+if os.path.isfile('.claude/ssot-literal.tsv'):
+    for row in open('.claude/ssot-literal.tsv', encoding='utf-8'):
+        row = row.rstrip('\n')
+        if row and not row.startswith('#'):
+            f = row.split('\t')
+            if len(f) >= 3: allowed[os.path.normpath(f[0])] = f[1]
+vocab = sorted(data['vocab'], key=len, reverse=True)
+LIT = re.compile(r"""(['"])(""" + '|'.join(re.escape(v) for v in vocab) + r""")\1""")
+PAIR = re.compile(r"""\b([A-Za-z_]+)\s*:\s*(['"])([^'"\n]*)\2""")
+valid = {k: set(v) for k, v in data['valid'].items()}
+colors = set(data['colors'])
+
+def strip_comments(text):
+    """コメントを空白に置き換える（文字列リテラルの中の // は残す）。行番号は保つ。"""
+    out, i, n, q, block = [], 0, len(text), None, False
+    while i < n:
+        c = text[i]
+        if block:
+            if text.startswith('*/', i): block = False; out.append('  '); i += 2; continue
+            out.append('\n' if c == '\n' else ' '); i += 1; continue
+        if q:
+            out.append(c)
+            if c == '\\' and i + 1 < n: out.append(text[i + 1]); i += 2; continue
+            if c == q or (c == '\n' and q != '`'): q = None
+            i += 1; continue
+        if c in '\'"`': q = c; out.append(c); i += 1; continue
+        if text.startswith('/*', i): block = True; out.append('  '); i += 2; continue
+        if text.startswith('//', i):
+            j = text.find('\n', i); j = n if j < 0 else j
+            out.append(' ' * (j - i)); i = j; continue
+        out.append(c); i += 1
+    return ''.join(out)
+
+files = sorted(p for p in set(glob.glob('*.js') + glob.glob('*.php')) if p != 'genetics.php')
+if only: files = [p for p in files if os.path.normpath(p) in only]
+ng, nlit, ndata = [], 0, 0
+for path in files:
+    if allowed.get(os.path.normpath(path)): continue
+    raw = open(path, encoding='utf-8', errors='replace').read()
+    lines = raw.split('\n'); code = strip_comments(raw).split('\n')
+    inblock = False
+    for ln, (src, line) in enumerate(zip(lines, code), 1):
+        if 'ssot-data:begin' in src: inblock = True; continue
+        if 'ssot-data:end' in src: inblock = False; continue
+        allow = any('lint-allow:ssot-literal' in l for l in lines[max(0, ln - 2):ln])
+        if inblock:
+            for m in PAIR.finditer(line):
+                key, val = m.group(1), m.group(3)
+                if key in valid:
+                    ndata += 1
+                    if val not in valid[key] and not allow:
+                        ng.append(f"NG   {path}:{ln}: [ssot-data] {key}: '{val}' は正本の遺伝子型・アレルに無い（genetics.php GENOTYPE_OPTIONS / LOCI）")
+                elif key == 'baseColor':
+                    ndata += 1
+                    if val not in colors and not allow:
+                        ng.append(f"NG   {path}:{ln}: [ssot-data] baseColor: '{val}' は COLOR_DEFINITIONS に無い")
+            continue
+        for m in LIT.finditer(line):
+            nlit += 1
+            if not allow:
+                ng.append(f"NG   {path}:{ln}: [ssot-literal] 遺伝子型 {m.group(0)} は genetics.php にだけ書く（JS は GENOTYPE_DATA / genodata.js、PHP は AgapornisLoci から引く）")
+if ng:
+    print('\n'.join(ng)); sys.exit(1)
+print(f"OK   ssot-literal-check: ファイル {len(files)} 本、遺伝子型リテラル 0 件（例外の印つき {nlit} 件）、データの表記 {ndata} 件すべて正本どおり")
+PY

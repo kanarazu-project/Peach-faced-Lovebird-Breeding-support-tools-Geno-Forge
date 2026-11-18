@@ -1,0 +1,4 @@
+# path<TAB>kind<TAB>reason。scripts/ssot-literal-check が読む。
+# ここに載せたファイルは、ファイル全体を遺伝子型リテラルの検査から外す。
+# kind: test（期待値・わざと不正な入力を含むテスト）。データは ssot-data:begin / ssot-data:end のブロックで囲む（表記を正本と照合する）。
+debug_test.php	test	テストの入力と期待値（不正値・旧表記の受け付けを確かめる入力を含む）

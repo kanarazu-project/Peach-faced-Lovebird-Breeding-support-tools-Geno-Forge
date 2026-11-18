@@ -7,4 +7,6 @@ bash scripts/route-check || rc=1
 bash scripts/rule-lint "$@" || rc=1
 bash scripts/php-test || rc=1
 bash scripts/pedigree-check || rc=1
+bash scripts/ssot-literal-check || rc=1
+bash scripts/js-check || rc=1
 exit "$rc"

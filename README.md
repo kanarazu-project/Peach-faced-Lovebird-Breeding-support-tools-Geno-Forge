@@ -97,37 +97,46 @@ genetics.php (SSOT)
     ├─ COLOR_DEFINITIONS (310+ colors)
     ├─ RECOMBINATION_RATES (linkage rates)
     ├─ GenotypeEstimator::pedigreeData() (wild types, academic notation, confidence table)
+    ├─ AgapornisLoci::genotypeData() (genotype table, colour genotypes, planner targets, colour keys)
     │
-    └─→ index.php → JS constant injection → JS files
+    └─→ index.php → JS constant injection → genodata.js (lookup helper) → JS files
 ```
 
-JavaScript holds no copy of a genetic rule. When JS needs the result of a rule, PHP computes a table and `index.php` injects it (e.g. `PEDIGREE_DATA` for the pedigree certificate). The full map, what JS may hold, and the remaining duplication candidates are in [`docs/ssot.md`](docs/ssot.md). `scripts/agent-check` enforces this rule through `.claude/rule-lint.tsv` and `scripts/pedigree-check`.
+Genotype strings and genetic rules live only in `genetics.php`. JavaScript holds no copy of a genetic rule: when it needs a fact or a result, PHP computes a table and `index.php` injects it (`GENOTYPE_DATA`, `PEDIGREE_DATA`). JS reads it through `genodata.js`, asking by locus and allele names (`GenoData.isWild('dark', g)`, `GenoData.dose('fallow_pale', g)`). Other PHP files call `AgapornisLoci` instead of writing genotypes. Bird records (demo and sample data) sit inside `ssot-data:begin` / `ssot-data:end` blocks and are checked against the canonical notation.
+
+`scripts/agent-check` enforces this rule:
+- `scripts/ssot-literal-check` reads its vocabulary from `genetics.php` and flags every genotype literal outside it.
+- `scripts/js-check` and `scripts/pedigree-check` compare the JS lookups with PHP.
+- `.claude/rule-lint.tsv` checks the injections and the rate fallbacks.
+
+The full map, what JS may hold and the remaining issues are in [`docs/ssot.md`](docs/ssot.md).
 
 ### Verification
 
 The mathematical logic of `genetics.php` (genetic calculation core engine) has been verified for computational reliability through cross-referencing with *Principles of Avian Genetics for Aviculture* (full text) using Gemini 3 in a single context window for mathematical validation against genetic theory.
 
-### File List (17 files, 28,002 lines)
+### File List (18 files, 27,783 lines)
 
 | File | Lines | Purpose |
 |------|------:|---------|
-| genetics.php | 5,423 | Genetics calculation engine (SSOT) |
+| genetics.php | 5,650 | Genetics calculation engine (SSOT) |
 | style.css | 3,091 | All styles |
-| debug_test.php | 2,859 | Debug test suite |
-| index.php | 2,313 | Main UI + JS constant injection |
-| birds.js | 2,298 | Bird DB + 72 demo specimens |
+| debug_test.php | 2,887 | Debug test suite |
+| index.php | 2,326 | Main UI + JS constant injection |
+| birds.js | 2,218 | Bird DB + 72 demo specimens |
 | lang_pathfinder.php | 2,192 | PathFinder i18n (11 languages) |
-| planner.js | 2,042 | Breeding planner + linkage evaluation |
+| planner.js | 1,841 | Breeding planner + linkage evaluation |
 | readme_lang.php | 1,828 | README i18n (11 languages) |
-| family.js | 1,542 | Family tree UI + Auto Populate |
+| family.js | 1,512 | Family tree UI + Auto Populate |
 | lang_guardian.php | 1,165 | Guardian i18n (11 languages) |
-| app.js | 908 | Main application logic |
+| app.js | 910 | Main application logic |
 | pedigree.js | 562 | Pedigree chart rendering |
-| guardian.js | 517 | Health assessment engine |
-| breeding.js | 492 | Breeding calculation UI |
+| guardian.js | 507 | Health assessment engine |
+| breeding.js | 237 | Breeding API (offspring calculation is done by PHP GeneticsCalculator) |
 | readme.php | 374 | README page |
 | infer.php | 214 | Genotype inference logic |
 | lang.php | 182 | Base i18n (11 languages) |
+| genodata.js | 87 | Genetic fact lookups (reads GENOTYPE_DATA injected from genetics.php) |
 
 ### Key Classes
 
@@ -316,17 +325,17 @@ Comprehensive test suite covering all genetic calculations and integrations.
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 126 (PHP 96 + JS 30) |
+| Total Tests | 127 (PHP 97 + JS 30) |
 | Pass Rate | 100% |
 | Test File | `debug_test.php` |
 
 **Test Categories:**
 - PHP Unit tests (50): Core classes, calculations, color definitions
 - PHP Integration tests (33): UI/API compatibility, SSOT integrity, i18n coverage
-- PHP Regression tests (13): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist, pedigree data built from SSOT
+- PHP Regression tests (13): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist, pedigree data built from SSOT, genotype data (canonical forms, colour signatures, planner targets, INO types)
 - JS Tests (30): BreedingValidator, HealthGuardian, BreedingPlanner
 
-Run tests via browser: `debug_test.php?run_tests=1`, or on the command line: `bash scripts/agent-check` (Skill routing check, rule table, PHP tests and the pedigree PHP/JS match check).
+Run tests via browser: `debug_test.php?run_tests=1` (PHP and JS tests), or on the command line: `bash scripts/agent-check`. It runs the Skill routing check, the rule table, the PHP tests, the pedigree PHP/JS match check, the SSOT literal check and the JS/PHP match check.
 
 CI (`.github/workflows/verify.yml`) runs `scripts/agent-check` on every push to main and on pull requests. To enable the pre-commit hook in a clone, run `bash scripts/install-hooks` once. It runs the routing check and the rule table on staged files only; the full check stays in CI.
 

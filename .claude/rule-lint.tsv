@@ -3,7 +3,8 @@
 # forbid:   正規表現 arg1 に一致する箇所が無いこと。 require: 正規表現 arg1 に一致する箇所がファイルに1つ以上あること。
 # 意図した例外は、該当行かその直前の1行に lint-allow:<id> と理由を書く。
 # SSOT（docs/ssot.md・genetics-change Skill）: 遺伝の規則は genetics.php にだけ置き、JS は注入された定数を引く。
-ped-geno-literal	forbid	pedigree.js	['"](?:\+|d|D|v|V|aq|tq|ino|pld|op|cin|flp|flb|Pi|pi|dil|Ed|ed|of|ph){2}['"]|['"](?:\+|ino|pld|op|cin)W['"]
+# 遺伝子型リテラルの検査は scripts/ssot-literal-check（語彙を genetics.php から読む）が全ファイルで行う。
 js-rate-fallback	forbid	*.js	RECOMBINATION_RATES\[[^\]]+\]\s*\|\|\s*[0-9.]+
 inject-recombination	require	index.php	const RECOMBINATION_RATES = <\?= json_encode\(AgapornisLoci::RECOMBINATION_RATES\) \?>
 inject-pedigree-data	require	index.php	const PEDIGREE_DATA = <\?= json_encode\(GenotypeEstimator::pedigreeData\(\)\) \?>
+inject-genotype-data	require	index.php	const GENOTYPE_DATA = <\?= json_encode\(AgapornisLoci::genotypeData\(\)\) \?>

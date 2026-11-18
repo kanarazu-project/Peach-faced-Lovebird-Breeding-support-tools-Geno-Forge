@@ -2,6 +2,7 @@
 # pre-commit: 変更したファイルだけを軽く検査する（全体の検査は CI の scripts/agent-check が受け持つ）。
 #   1. route-check  … Skill の名指し・経路の登録・語の一致
 #   2. rule-lint    … ステージした変更ファイルだけ（規則表 .claude/rule-lint.tsv）
+#   3. ssot-literal-check … ステージした変更ファイルだけ（遺伝子型を genetics.php 以外に書かない）
 # 有効化はクローンごとに1回: bash scripts/install-hooks
 root="$(git rev-parse --show-toplevel)" || exit 1
 cd "$root" || exit 1
@@ -11,6 +12,7 @@ files=()
 while IFS= read -r -d '' f; do [ -f "$f" ] && files+=("$f"); done < <(git diff --cached --name-only --diff-filter=ACMR -z)
 if [ "${#files[@]}" -gt 0 ]; then
   bash scripts/rule-lint "${files[@]}" || rc=1
+  bash scripts/ssot-literal-check "${files[@]}" || rc=1
 fi
 [ "$rc" -eq 0 ] || echo "pre-commit: NG を直してからコミットせよ（全体の検査: bash scripts/agent-check）"
 exit "$rc"

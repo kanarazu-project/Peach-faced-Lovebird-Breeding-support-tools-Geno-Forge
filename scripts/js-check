@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# JS が正本（genetics.php）の表を正しく引いているかを検査する。1件でも食い違えば NG・終了コード 1。
+#   1. birds.js  calculatePhenotype: 全色 × オス/メスで、色の定義の遺伝子型から同じ色キーが返る
+#   2. guardian.js _getINOTypeName: パーブルーごとの INO 色が GENOTYPE_DATA.inoTypes と一致する
+#   3. planner.js  TARGET_REQUIREMENTS が GENOTYPE_DATA.targets そのものであり、isCompatibleSplit が ino と pld を区別する
+#   4. genodata.js 全座位の全表記で、canonical / isWild / wildGenotype が PHP の表と一致する
+root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
+command -v php >/dev/null 2>&1 || { echo "NG   js-check: php が無い"; exit 1; }
+command -v node >/dev/null 2>&1 || { echo "NG   js-check: node が無い"; exit 1; }
+tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
+php -r 'require "genetics.php"; echo json_encode(["COLOR_MASTER" => AgapornisLoci::COLOR_DEFINITIONS, "LOCI_MASTER" => AgapornisLoci::LOCI,
+  "GENOTYPE_DATA" => AgapornisLoci::genotypeData(), "RECOMBINATION_RATES" => AgapornisLoci::RECOMBINATION_RATES]);' > "$tmp" \
+  || { echo "NG   js-check: PHP 側の出力に失敗"; exit 1; }
+exec node - "$tmp" "$root" <<'JS'
+const fs = require('fs'), vm = require('vm');
+const consts = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')), root = process.argv[3];
+const ctx = { ...consts, window: { T: {} }, document: { getElementById() { return null; } },
+              console: { log() {}, warn() {}, error() {} }, localStorage: { getItem() { return null; }, setItem() {} } };
+vm.createContext(ctx);
+for (const f of ['genodata.js', 'guardian.js', 'birds.js', 'planner.js']) vm.runInContext(fs.readFileSync(`${root}/${f}`, 'utf8'), ctx);
+vm.runInContext('this.$G = GenoData; this.$B = BirdDB; this.$H = HealthGuardian; this.$P = BreedingPlanner;', ctx);
+const D = consts.GENOTYPE_DATA, ng = []; let n = 0;
+const check = (ok, msg) => { n++; if (!ok) ng.push(msg); };
+for (const color of Object.keys(consts.COLOR_MASTER)) for (const sex of ['male', 'female']) {
+  const got = ctx.$B.calculatePhenotype(ctx.$G.colorGenotype(color, sex), sex, null);
+  check(got === color, `birds.calculatePhenotype ${color}/${sex}: ${got}`);
+}
+for (const [pb, color] of D.inoTypes) check(ctx.$H._getINOTypeName({ parblue: pb }, { parblue: pb }) === color, `guardian._getINOTypeName ${pb}: expected ${color}`);
+check(ctx.$P.TARGET_REQUIREMENTS === D.targets, 'planner.TARGET_REQUIREMENTS is not GENOTYPE_DATA.targets');
+check(ctx.$P.isCompatibleSplit('+pld', ['pldpld', 'pldW'], 'ino') === true, 'planner.isCompatibleSplit +pld vs pallid');
+check(ctx.$P.isCompatibleSplit('+ino', ['pldpld', 'pldW'], 'ino') === false, 'planner.isCompatibleSplit +ino vs pallid');
+for (const [locus, l] of Object.entries(D.loci)) {
+  check(ctx.$G.wildGenotype(locus, 'female') === l.wild.female, `GenoData.wildGenotype ${locus}`);
+  for (const [g, info] of Object.entries(l.genotypes)) {
+    check(ctx.$G.canonical(locus, g) === info.canonical, `GenoData.canonical ${locus} ${g}`);
+    check(ctx.$G.isWild(locus, g) === info.wild, `GenoData.isWild ${locus} ${g}`);
+  }
+}
+if (ng.length) { console.log(ng.slice(0, 20).map(m => 'NG   js-check: ' + m).join('\n')); console.log(`NG   js-check: ${ng.length} 件不一致 / ${n} 件`); process.exit(1); }
+console.log(`OK   js-check: ${n} 件すべて正本どおり`);
+JS
