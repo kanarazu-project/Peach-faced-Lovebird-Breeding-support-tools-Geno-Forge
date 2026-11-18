@@ -192,8 +192,9 @@ const BirdDB = {
             const isMale = sex === 'male';
             const colorDef = (typeof COLOR_MASTER !== 'undefined' && COLOR_MASTER[colorKey]) || {};
             const eyeColor = colorDef.eye || 'black';
-            const darkVal = genotype.dark || 'dd';
-            const darkness = darkVal === 'DD' ? 'df' : (darkVal === 'Dd' ? 'sf' : 'none');
+            // SSOT: ダーク因子の遺伝子型 → 濃さ欄の値は GENOTYPE_DATA.darknessByDark（genetics.php）
+            const darkVal = GenoData.canonical('dark', genotype.dark || GenoData.wildGenotype('dark'));
+            const darkness = ((GenoData.data() || {}).darknessByDark || {})[darkVal] || 'none';
 
             return {
                 id: id,
@@ -220,6 +221,7 @@ const BirdDB = {
             };
         };
 
+        // ssot-data:begin デモ個体（72羽）の記録。表記は scripts/ssot-literal-check が正本と照合する
         // ============================================================
         // G0: 曾祖父母 8羽（4カップル）
         // 子孫の多様性を最大化するよう設計
@@ -751,7 +753,7 @@ const BirdDB = {
             parblue: '+aq', dark: 'dd', violet: 'vv',
             pied_rec: '++', pied_dom: '++', dilute: '++',
             fallow_pale: '++', fallow_bronze: '+flb',
-            edged: 'eded', orangeface: '++', pale_headed: '++',
+            edged: 'EdEd', orangeface: '++', pale_headed: '++',
             Z_linked: {
                 Z1: { cinnamon: '+', ino: '+', opaline: '+' },
                 Z2: { cinnamon: '+', ino: '+', opaline: '+' }
@@ -767,7 +769,7 @@ const BirdDB = {
             parblue: 'aqaq', dark: 'dd', violet: 'vv',
             pied_rec: '++', pied_dom: '++', dilute: '++',
             fallow_pale: '++', fallow_bronze: '+flb',
-            edged: 'eded', orangeface: '++', pale_headed: '++',
+            edged: 'EdEd', orangeface: '++', pale_headed: '++',
             Z_linked: {
                 Z1: { cinnamon: '+', ino: '+', opaline: '+' },
                 Z2: null
@@ -861,7 +863,7 @@ const BirdDB = {
             parblue: '+aq', dark: 'dd', violet: 'vv',
             pied_rec: '++', pied_dom: '++', dilute: '++',
             fallow_pale: '++', fallow_bronze: '+flb',
-            edged: 'eded', orangeface: '++', pale_headed: '++',
+            edged: 'EdEd', orangeface: '++', pale_headed: '++',
             Z_linked: {
                 Z1: { cinnamon: '+', ino: '+', opaline: '+' },
                 Z2: { cinnamon: '+', ino: '+', opaline: '+' }
@@ -927,7 +929,7 @@ const BirdDB = {
             parblue: 'aqaq', dark: 'dd', violet: 'vv',
             pied_rec: '++', pied_dom: '++', dilute: '++',
             fallow_pale: '++', fallow_bronze: '+flb',
-            edged: '+ed', orangeface: '+of', pale_headed: '+ph',
+            edged: 'Ed+', orangeface: '+of', pale_headed: '+ph',
             Z_linked: {
                 Z1: { cinnamon: '+', ino: '+', opaline: '+' },
                 Z2: null
@@ -966,7 +968,7 @@ const BirdDB = {
             parblue: 'tqaq', dark: 'dd', violet: 'vv',
             pied_rec: '++', pied_dom: '++', dilute: '+dil',
             fallow_pale: '+flp', fallow_bronze: '++',
-            edged: '+ed', orangeface: '++', pale_headed: '++',
+            edged: 'Ed+', orangeface: '++', pale_headed: '++',
             Z_linked: {
                 Z1: { cinnamon: '+', ino: '+', opaline: '+' },
                 Z2: { cinnamon: '+', ino: '+', opaline: '+' }
@@ -998,7 +1000,7 @@ const BirdDB = {
             parblue: 'tqaq', dark: 'dd', violet: 'vv',
             pied_rec: '++', pied_dom: '++', dilute: '+dil',
             fallow_pale: '+flp', fallow_bronze: '+flb',
-            edged: '+ed', orangeface: '++', pale_headed: '++',
+            edged: 'Ed+', orangeface: '++', pale_headed: '++',
             Z_linked: {
                 Z1: { cinnamon: '+', ino: '+', opaline: '+' },
                 Z2: { cinnamon: '+', ino: '+', opaline: '+' }
@@ -1014,7 +1016,7 @@ const BirdDB = {
             parblue: 'aqaq', dark: 'dd', violet: 'vv',
             pied_rec: '++', pied_dom: '++', dilute: '+dil',
             fallow_pale: '+flp', fallow_bronze: '+flb',
-            edged: '+ed', orangeface: '+of', pale_headed: '++',
+            edged: 'Ed+', orangeface: '+of', pale_headed: '++',
             Z_linked: {
                 Z1: { cinnamon: '+', ino: '+', opaline: '+' },
                 Z2: null
@@ -1030,7 +1032,7 @@ const BirdDB = {
             parblue: 'tqaq', dark: 'dd', violet: 'vv',
             pied_rec: '++', pied_dom: '++', dilute: '+dil',
             fallow_pale: '+flp', fallow_bronze: '+flb',
-            edged: '+ed', orangeface: '+of', pale_headed: '+ph',
+            edged: 'Ed+', orangeface: '+of', pale_headed: '+ph',
             Z_linked: {
                 Z1: { cinnamon: '+', ino: '+', opaline: '+' },
                 Z2: { cinnamon: '+', ino: '+', opaline: '+' }
@@ -1062,7 +1064,7 @@ const BirdDB = {
             parblue: 'tqtq', dark: 'dd', violet: 'vv',
             pied_rec: '++', pied_dom: '++', dilute: '+dil',
             fallow_pale: '+flp', fallow_bronze: '++',
-            edged: '+ed', orangeface: '++', pale_headed: '++',
+            edged: 'Ed+', orangeface: '++', pale_headed: '++',
             Z_linked: {
                 Z1: { cinnamon: '+', ino: '+', opaline: '+' },
                 Z2: { cinnamon: '+', ino: '+', opaline: '+' }
@@ -1094,7 +1096,7 @@ const BirdDB = {
             parblue: 'aqaq', dark: 'dd', violet: 'vv',
             pied_rec: '++', pied_dom: '++', dilute: '+dil',
             fallow_pale: '+flp', fallow_bronze: '+flb',
-            edged: '+ed', orangeface: '++', pale_headed: '+ph',
+            edged: 'Ed+', orangeface: '++', pale_headed: '+ph',
             Z_linked: {
                 Z1: { cinnamon: '+', ino: '+', opaline: '+' },
                 Z2: { cinnamon: '+', ino: '+', opaline: '+' }
@@ -1110,7 +1112,7 @@ const BirdDB = {
             parblue: 'aqaq', dark: 'dd', violet: 'vv',
             pied_rec: '++', pied_dom: '++', dilute: '+dil',
             fallow_pale: '++', fallow_bronze: 'flbflb',
-            edged: '+ed', orangeface: '++', pale_headed: '++',
+            edged: 'Ed+', orangeface: '++', pale_headed: '++',
             Z_linked: {
                 Z1: { cinnamon: '+', ino: '+', opaline: '+' },
                 Z2: null
@@ -1322,6 +1324,7 @@ const BirdDB = {
         const nadia = createInferenceBird('c3_10', 'Nadia', 'female', 'pure_white', fullPedigreeC, 3);
 
         birds.push(derek, ellie, felix, gia, harvey_c, ivy_c, jordan, kira, liam, nadia);
+        // ssot-data:end
 
         return birds;
     },
@@ -1531,62 +1534,26 @@ const BirdDB = {
     migrateGenotypeToV7(oldGenotype, sex, baseColor) {
         const isMale = sex === 'male';
 
-        // 旧形式の値をパース
-        const parseZLinkedAllele = (value, locusKey) => {
-            if (!value) return { a1: '+', a2: isMale ? '+' : null };
-
-            // メス形式: 'cinW', 'opW', 'inoW', 'pldW', '+W'
-            if (value.endsWith('W')) {
-                const allele = value.slice(0, -1);
-                return { a1: allele === '+' ? '+' : allele, a2: null };
-            }
-
-            // オス形式
-            if (value === '++') return { a1: '+', a2: '+' };
-            if (value === 'opop') return { a1: 'op', a2: 'op' };
-            if (value === 'cincin') return { a1: 'cin', a2: 'cin' };
-            if (value === 'inoino') return { a1: 'ino', a2: 'ino' };
-            if (value === 'pldpld') return { a1: 'pld', a2: 'pld' };
-            if (value === 'pldino') return { a1: 'pld', a2: 'ino' };
-            if (value === '+op') return { a1: 'op', a2: '+' };
-            if (value === '+cin') return { a1: 'cin', a2: '+' };
-            if (value === '+ino') return { a1: 'ino', a2: '+' };
-            if (value === '+pld') return { a1: 'pld', a2: '+' };
-
-            return { a1: '+', a2: isMale ? '+' : null };
+        // 旧形式の値 → アレルの組（SSOT: GENOTYPE_DATA で引く。変異アレルを a1 に置き、伴性メスは a2 なし）
+        const wildAlleleOf = (locusKey) => (GenoData.alleles(locusKey, GenoData.wildGenotype(locusKey, 'male')) || [])[0];
+        const toPair = (locusKey, value) => {
+            const hemizygous = !!(GenoData.locus(locusKey) || {}).sexLinked && !isMale;
+            const alleles = GenoData.alleles(locusKey, value)
+                || GenoData.alleles(locusKey, GenoData.wildGenotype(locusKey, hemizygous ? 'female' : 'male')) || [];
+            const w = wildAlleleOf(locusKey);
+            const ordered = (alleles.length === 2 && alleles[0] === w && alleles[1] !== w) ? [alleles[1], alleles[0]] : alleles;
+            return { a1: ordered[0], a2: ordered.length === 2 ? ordered[1] : null };
         };
+        const isMutant = (locusKey, allele) => !!allele && allele !== wildAlleleOf(locusKey);
 
-        const parseAutosomalAllele = (value, locusKey) => {
-            if (!value) return { a1: '+', a2: '+' };
+        // Z連鎖座位
+        const cin = toPair('cinnamon', oldGenotype.cin);
+        const ino = toPair('ino', oldGenotype.ino);
+        const op = toPair('opaline', oldGenotype.op);
 
-            // dark: 'dd', 'Dd', 'DD'
-            if (locusKey === 'dark') {
-                if (value === 'dd') return { a1: 'd', a2: 'd' };
-                if (value === 'Dd') return { a1: 'D', a2: 'd' };
-                if (value === 'DD') return { a1: 'D', a2: 'D' };
-            }
-
-            // parblue: '++', '+aq', '+tq', 'aqaq', 'tqtq', 'tqaq'
-            if (locusKey === 'parblue') {
-                if (value === '++') return { a1: '+', a2: '+' };
-                if (value === '+aq') return { a1: 'aq', a2: '+' };
-                if (value === '+tq') return { a1: 'tq', a2: '+' };
-                if (value === 'aqaq') return { a1: 'aq', a2: 'aq' };
-                if (value === 'tqtq') return { a1: 'tq', a2: 'tq' };
-                if (value === 'tqaq') return { a1: 'tq', a2: 'aq' };
-            }
-
-            return { a1: '+', a2: '+' };
-        };
-
-        // Z連鎖座位のパース
-        const cin = parseZLinkedAllele(oldGenotype.cin, 'cinnamon');
-        const ino = parseZLinkedAllele(oldGenotype.ino, 'ino');
-        const op = parseZLinkedAllele(oldGenotype.op, 'opaline');
-
-        // 常染色体連鎖座位のパース
-        const dark = parseAutosomalAllele(oldGenotype.dark, 'dark');
-        const parblue = parseAutosomalAllele(oldGenotype.parblue, 'parblue');
+        // 常染色体連鎖座位
+        const dark = toPair('dark', oldGenotype.dark);
+        const parblue = toPair('parblue', oldGenotype.parblue);
 
         // 相の推論（表現型から）
         // Lacewing (cinnamon + ino) → cin-ino は Cis
@@ -1618,8 +1585,8 @@ const BirdDB = {
 
         // 相の確定状態を記録
         const hasMultipleZMutations =
-            (cin.a1 !== '+' || cin.a2 !== '+') &&
-            (ino.a1 !== '+' || ino.a2 !== '+' || op.a1 !== '+' || op.a2 !== '+');
+            (isMutant('cinnamon', cin.a1) || isMutant('cinnamon', cin.a2)) &&
+            (isMutant('ino', ino.a1) || isMutant('ino', ino.a2) || isMutant('opaline', op.a1) || isMutant('opaline', op.a2));
 
         const phaseKnown = isLacewing || !hasMultipleZMutations;
 
@@ -1627,15 +1594,15 @@ const BirdDB = {
         // 独立座位は旧形式を維持（キー名を正規化）
         return {
             // 独立座位（LOCI準拠キー名）
-            violet: oldGenotype.vio || 'vv',
-            fallow_pale: oldGenotype.fl || '++',
-            fallow_bronze: '++',
-            pied_dom: '++',
-            pied_rec: oldGenotype.pi || '++',
-            dilute: oldGenotype.dil || '++',
-            edged: '++',
-            orangeface: '++',
-            pale_headed: '++',
+            violet: oldGenotype.vio || GenoData.wildGenotype('violet'),
+            fallow_pale: oldGenotype.fl || GenoData.wildGenotype('fallow_pale'),
+            fallow_bronze: GenoData.wildGenotype('fallow_bronze'),
+            pied_dom: GenoData.wildGenotype('pied_dom'),
+            pied_rec: oldGenotype.pi || GenoData.wildGenotype('pied_rec'),
+            dilute: oldGenotype.dil || GenoData.wildGenotype('dilute'),
+            edged: GenoData.wildGenotype('edged'),
+            orangeface: GenoData.wildGenotype('orangeface'),
+            pale_headed: GenoData.wildGenotype('pale_headed'),
 
             // Z染色体連鎖グループ（v7新形式）
             Z_linked: Z_linked,
@@ -1688,43 +1655,13 @@ const BirdDB = {
                     observed.baseColor = key;
                     observed.eyeColor = def.eye || 'black';
                     // ダーク因子の推定
-                    const geno = def.genotype || {};
-                    if (geno.dark === 'DD') observed.darkness = 'df';
-                    else if (geno.dark === 'Dd') observed.darkness = 'sf';
+                    const dark = (def.genotype || {}).dark;
+                    if (dark) observed.darkness = ((GenoData.data() || {}).darknessByDark || {})[GenoData.canonical('dark', dark)] || observed.darkness;
                     break;
                 }
             }
-        } else {
-            // フォールバック: COLOR_MASTER未定義時
-            if (p.includes('lutino')) { observed.baseColor = 'lutino'; observed.eyeColor = 'red'; }
-            else if (p.includes('creamino') && p.includes('seagreen')) { observed.baseColor = 'creamino_seagreen'; observed.eyeColor = 'red'; }
-            else if (p.includes('creamino')) { observed.baseColor = 'creamino'; observed.eyeColor = 'red'; }
-            else if (p.includes('pure') && p.includes('white')) { observed.baseColor = 'pure_white'; observed.eyeColor = 'red'; }
-            else if (p.includes('fallow') && p.includes('aqua')) { observed.baseColor = 'fallow_pale_aqua'; observed.eyeColor = 'red'; }
-            else if (p.includes('fallow')) { observed.baseColor = 'fallow_pale_green'; observed.eyeColor = 'red'; }
-            else if (p.includes('pallid') && p.includes('seagreen')) { observed.baseColor = 'pallid_seagreen'; }
-            else if (p.includes('pallid') && p.includes('turquoise')) { observed.baseColor = 'pallid_turquoise'; }
-            else if (p.includes('pallid') && p.includes('aqua')) { observed.baseColor = 'pallid_aqua'; }
-            else if (p.includes('pallid')) { observed.baseColor = 'pallid_green'; }
-            else if (p.includes('cinnamon') && p.includes('seagreen')) { observed.baseColor = 'cinnamon_seagreen'; }
-            else if (p.includes('cinnamon') && p.includes('turquoise')) { observed.baseColor = 'cinnamon_turquoise'; }
-            else if (p.includes('cinnamon') && p.includes('aqua')) { observed.baseColor = 'cinnamon_aqua'; }
-            else if (p.includes('cinnamon')) { observed.baseColor = 'cinnamon_green'; }
-            else if (p.includes('opaline') && p.includes('seagreen')) { observed.baseColor = 'opaline_seagreen'; }
-            else if (p.includes('opaline') && p.includes('turquoise')) { observed.baseColor = 'opaline_turquoise'; }
-            else if (p.includes('opaline') && p.includes('aqua')) { observed.baseColor = 'opaline_aqua'; }
-            else if (p.includes('opaline')) { observed.baseColor = 'opaline_green'; }
-            else if (p.includes('seagreen') && p.includes('dark')) { observed.baseColor = 'seagreen_dark'; observed.darkness = 'sf'; }
-            else if (p.includes('seagreen')) { observed.baseColor = 'seagreen'; }
-            else if (p.includes('turquoise') && p.includes('dark')) { observed.baseColor = 'turquoise_dark'; observed.darkness = 'sf'; }
-            else if (p.includes('turquoise')) { observed.baseColor = 'turquoise'; }
-            else if (p.includes('aqua') && (p.includes('olive') || p.includes('dd'))) { observed.baseColor = 'aqua_dd'; observed.darkness = 'df'; }
-            else if (p.includes('aqua') && (p.includes('dark') || p.includes('cobalt'))) { observed.baseColor = 'aqua_dark'; observed.darkness = 'sf'; }
-            else if (p.includes('aqua') || p.includes('blue')) { observed.baseColor = 'aqua'; }
-            else if (p.includes('olive')) { observed.baseColor = 'olive'; observed.darkness = 'df'; }
-            else if (p.includes('dark') && p.includes('green')) { observed.baseColor = 'darkgreen'; observed.darkness = 'sf'; }
-            else if (p.includes('green') || p.includes('normal')) { observed.baseColor = 'green'; }
         }
+        // COLOR_MASTER が無いときの色名の写しは持たない（SSOT: 色の定義は genetics.php → COLOR_MASTER だけ）
 
         // ダーク因子の追加判定
         if (p.includes('df') || p.includes('double')) { observed.darkness = 'df'; }
@@ -1791,14 +1728,11 @@ const BirdDB = {
             darkness: bird.darkness || 'none'
         };
 
-        // v7.0: 正しい座位名を使用
-        const defaultGenotype = {
-            parblue: '++',
-            ino: bird.sex === 'female' ? '+W' : '++',
-            opaline: bird.sex === 'female' ? '+W' : '++',
-            cinnamon: bird.sex === 'female' ? '+W' : '++',
-            dark: 'dd', violet: 'vv', fallow_pale: '++', dilute: '++', pied_rec: '++'
-        };
+        // v7.0: 正しい座位名を使用。既定値は野生型（SSOT: GENOTYPE_DATA から性別に応じて引く）
+        const defaultGenotype = {};
+        ['parblue', 'ino', 'opaline', 'cinnamon', 'dark', 'violet', 'fallow_pale', 'dilute', 'pied_rec'].forEach(locus => {
+            defaultGenotype[locus] = GenoData.wildGenotype(locus, bird.sex === 'female' ? 'female' : 'male');
+        });
 
         const pedigree = bird.pedigree || this.buildPedigreeFromParents(
             bird.sire?.id || bird.sire || null,
@@ -1892,46 +1826,32 @@ const BirdDB = {
         // v7.3.11: SSOT - 色キーを構築してkeyToLabelで変換（ハードコード排除）
         if (observed?.baseColor) return this.getColorLabel(observed.baseColor);
 
-        // 色キーを構築（英語キー形式: cinnamon_aqua_dark）
+        // 色キーを組み立てる（SSOT: 規則は GENOTYPE_DATA.colorKey。genetics.php が色の定義から導く）
+        const rules = (GenoData.data() || {}).colorKey;
+        if (!rules) return this.getColorLabel('');
+        // 1. 定義済みの色: 署名（表現している座位=表現型の形、LOCI の順）で正本の色キーを引く
+        const signature = Object.keys(GENOTYPE_DATA.loci)
+            .map(locus => { const i = GenoData.info(locus, geno[locus]); return i && i.phenoForm ? `${locus}=${i.phenoForm}` : null; })
+            .filter(Boolean).join(';');
+        if (rules.bySignature[signature]) return this.getColorLabel(rules.bySignature[signature]);
+        // 2. 定義に無い組み合わせ: 部品から色キーを組み立てる
+        // 基本色を持たないパーブルー（スプリットなど）は野生型の系列として扱う
+        const raw = GenoData.canonical(rules.parblueLocus, geno[rules.parblueLocus]);
+        const parblue = rules.baseByParblue[raw] ? raw : rules.defaultParblue;
+        let baseKey = rules.baseByParblue[parblue];
         const keyParts = [];
-        let baseKey = 'green';
-
-        // パーブルー系列
-        if (geno.parblue === 'aqaq' || geno.parblue === 'bb') baseKey = 'aqua';
-        else if (geno.parblue === 'tqtq') baseKey = 'turquoise';
-        else if (geno.parblue === 'tqaq' || geno.parblue === 'tqb') baseKey = 'seagreen';
-
-        // INO系（特殊な色名を持つ）
-        if (['inoino', 'inoW'].includes(geno.ino)) {
-            if (baseKey === 'aqua') { keyParts.push('creamino'); baseKey = ''; }
-            else if (baseKey === 'turquoise') { keyParts.push('pure_white'); baseKey = ''; }
-            else if (baseKey === 'seagreen') { keyParts.push('creamino_seagreen'); baseKey = ''; }
-            else { keyParts.push('lutino'); baseKey = ''; }
-        } else if (['pldpld', 'pldino', 'pldW'].includes(geno.ino)) keyParts.push('pallid');
-
-        // 性連鎖形質
-        if (['opop', 'opW'].includes(geno.opaline)) keyParts.push('opaline');
-        if (['cincin', 'cinW'].includes(geno.cinnamon)) keyParts.push('cinnamon');
-
-        // ダーク因子（全パーブルー系列に対応）
-        if (geno.dark === 'DD') {
-            if (baseKey === 'green') baseKey = 'olive';
-            else if (baseKey === 'aqua') baseKey = 'aqua_dd';
-            else if (baseKey === 'turquoise') baseKey = 'turquoise_olive';
-            else if (baseKey === 'seagreen') baseKey = 'seagreen_olive';
-        } else if (geno.dark === 'Dd') {
-            if (baseKey === 'green') baseKey = 'darkgreen';
-            else if (baseKey === 'aqua') baseKey = 'aqua_dark';
-            else if (baseKey === 'turquoise') baseKey = 'turquoise_dark';
-            else if (baseKey === 'seagreen') baseKey = 'seagreen_dark';
+        for (const step of rules.steps) {
+            const g = GenoData.canonical(step.locus, geno[step.locus]);
+            if (!step.genotypes.includes(g)) continue;
+            if (step.replaceBase) {
+                keyParts.push(step.replaceBase[parblue]);
+                baseKey = '';
+            } else if (step.modifyBase) {
+                if (baseKey) baseKey = (step.modifyBase[parblue] || {})[g] || baseKey;
+            } else {
+                keyParts.push(step.part);
+            }
         }
-
-        // その他の形質
-        if (['flpflp', 'flfl'].includes(geno.fallow_pale)) keyParts.push('fallow');
-        if (geno.pied_rec === 'pipi') keyParts.push('pied');
-        if (geno.violet === 'Vv' || geno.violet === 'VV') keyParts.push('violet');
-        if (geno.dilute === 'dildil') keyParts.push('dilute');
-        if (geno.edged === 'eded') keyParts.push('edged');
 
         // キーを構築してkeyToLabelで変換
         const colorKey = baseKey ? [...keyParts, baseKey].join('_') : keyParts.join('_');

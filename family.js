@@ -1258,6 +1258,7 @@ const FamilyMap = {
         const isJa = (typeof LANG !== 'undefined' && LANG === 'ja');
 
         // サンプルデータ（最小限の家系図）
+        // ssot-data:begin ダウンロード用サンプル家系図（個体の記録。表記は scripts/ssot-literal-check が正本と照合する）
         const template = {
             name: isJa ? 'サンプル家系図' : 'Sample Family Map',
             savedAt: new Date().toISOString(),
@@ -1311,6 +1312,7 @@ const FamilyMap = {
                 }
             ]
         };
+        // ssot-data:end
 
         const json = JSON.stringify(template, null, 2);
         const blob = new Blob([json], { type: 'application/json' });
@@ -1352,22 +1354,16 @@ const FamilyMap = {
 
     formatGenotypeShort(geno) {
         if (!geno || typeof geno !== 'object') return '';
-        const parts = [];
-        // SSOT: genetics.phpのLOCI定義に準拠
-        if (geno.parblue && geno.parblue !== '++') parts.push(`pb:${geno.parblue}`);
-        if (geno.ino && geno.ino !== '++' && geno.ino !== '+W') parts.push(`ino:${geno.ino}`);
-        if (geno.dark && geno.dark !== 'dd') parts.push(`D:${geno.dark}`);
-        if (geno.violet && geno.violet !== 'vv') parts.push(`vi:${geno.violet}`);
-        if (geno.opaline && geno.opaline !== '++' && geno.opaline !== '+W') parts.push(`op:${geno.opaline}`);
-        if (geno.cinnamon && geno.cinnamon !== '++' && geno.cinnamon !== '+W') parts.push(`cin:${geno.cinnamon}`);
-        if (geno.fallow_pale && geno.fallow_pale !== '++') parts.push(`fl:${geno.fallow_pale}`);
-        if (geno.fallow_bronze && geno.fallow_bronze !== '++') parts.push(`flb:${geno.fallow_bronze}`);
-        if (geno.dilute && geno.dilute !== '++') parts.push(`dil:${geno.dilute}`);
-        if (geno.pied_rec && geno.pied_rec !== '++') parts.push(`pi:${geno.pied_rec}`);
-        if (geno.pied_dom && geno.pied_dom !== '++') parts.push(`Pi:${geno.pied_dom}`);
-        if (geno.edged && geno.edged !== '++') parts.push(`ed:${geno.edged}`);
-        if (geno.pale_headed && geno.pale_headed !== '++') parts.push(`ph:${geno.pale_headed}`);
-        return parts.join(' ');
+        // SSOT: 野生型かどうかは GENOTYPE_DATA（genodata.js）で引く。並びと略号は表示用
+        const prefixes = [
+            ['parblue', 'pb'], ['ino', 'ino'], ['dark', 'D'], ['violet', 'vi'], ['opaline', 'op'], ['cinnamon', 'cin'],
+            ['fallow_pale', 'fl'], ['fallow_bronze', 'flb'], ['dilute', 'dil'], ['pied_rec', 'pi'], ['pied_dom', 'Pi'],
+            ['edged', 'ed'], ['pale_headed', 'ph']
+        ];
+        return prefixes
+            .filter(([locus]) => geno[locus] && !GenoData.isWild(locus, geno[locus]))
+            .map(([locus, prefix]) => `${prefix}:${geno[locus]}`)
+            .join(' ');
     },
 
     /**
@@ -1414,26 +1410,11 @@ const FamilyMap = {
                     if (!geno[k]) geno[k] = v;
                 }
             }
-            // 表現型から推論で補完
-            const pheno = bird.phenotype?.baseColor || 'green';
-            const eyeColor = bird.phenotype?.eyeColor || 'black';
-            const isFemale = sex === 'female';
-
-            // parblue
-            if (!geno.parblue) {
-                if (['aqua', 'aqua_dark', 'aqua_dd', 'blue', 'cobalt', 'mauve', 'pure_white', 'albino', 'creamino'].includes(pheno)) geno.parblue = 'aqaq';
-                else if (['turquoise', 'turquoise_dark'].includes(pheno)) geno.parblue = 'tqtq';
-                else if (['seagreen', 'seagreen_dark', 'creamino_seagreen'].includes(pheno)) geno.parblue = 'tqaq';
+            // 表現型から補完（SSOT: 色の定義の遺伝子型を GENOTYPE_DATA.byColor から引く。伴性メスはヘミ接合）
+            const fromColor = GenoData.colorGenotype(bird.phenotype?.baseColor || 'green', sex) || {};
+            for (const [locus, value] of Object.entries(fromColor)) {
+                if (!geno[locus]) geno[locus] = value;
             }
-            // ino
-            if (!geno.ino) {
-                if (['lutino', 'creamino', 'pure_white', 'creamino_seagreen', 'albino'].includes(pheno) || eyeColor === 'red') geno.ino = isFemale ? 'inoW' : 'inoino';
-                else if (pheno.includes('pallid')) geno.ino = isFemale ? 'pldW' : 'pldpld';
-            }
-            // opaline
-            if (!geno.opaline && pheno.includes('opaline')) geno.opaline = isFemale ? 'opW' : 'opop';
-            // cinnamon
-            if (!geno.cinnamon && pheno.includes('cinnamon')) geno.cinnamon = isFemale ? 'cinW' : 'cincin';
 
             return geno;
         };
@@ -1443,21 +1424,10 @@ const FamilyMap = {
 
         // 子の遺伝子型を構築
         const childGeno = { ...genotype };
-        const childPheno = phenotype?.baseColor || 'green';
-        const childEye = phenotype?.eyeColor || 'black';
-        const childIsFemale = childSex === 'female';
-
-        if (!childGeno.parblue) {
-            if (['aqua', 'aqua_dark', 'aqua_dd', 'blue', 'cobalt', 'mauve', 'pure_white', 'albino', 'creamino'].includes(childPheno)) childGeno.parblue = 'aqaq';
-            else if (['turquoise', 'turquoise_dark'].includes(childPheno)) childGeno.parblue = 'tqtq';
-            else if (['seagreen', 'seagreen_dark', 'creamino_seagreen'].includes(childPheno)) childGeno.parblue = 'tqaq';
+        const childFromColor = GenoData.colorGenotype(phenotype?.baseColor || 'green', childSex) || {};
+        for (const [locus, value] of Object.entries(childFromColor)) {
+            if (!childGeno[locus]) childGeno[locus] = value;
         }
-        if (!childGeno.ino) {
-            if (['lutino', 'creamino', 'pure_white', 'creamino_seagreen', 'albino'].includes(childPheno) || childEye === 'red') childGeno.ino = childIsFemale ? 'inoW' : 'inoino';
-            else if (childPheno.includes('pallid')) childGeno.ino = childIsFemale ? 'pldW' : 'pldpld';
-        }
-        if (!childGeno.opaline && childPheno.includes('opaline')) childGeno.opaline = childIsFemale ? 'opW' : 'opop';
-        if (!childGeno.cinnamon && childPheno.includes('cinnamon')) childGeno.cinnamon = childIsFemale ? 'cinW' : 'cincin';
 
         // API呼び出し
         try {

@@ -48,12 +48,24 @@ if (isset($_GET['lang']) && in_array($_GET['lang'], ['ja', 'en', 'de', 'fr', 'it
 }
 
 /**
- * エッジドの入力値を正規の表記（Ed）にそろえる
- * 旧表記（+ed, ed+, eded）や +Ed で保存・共有されたURLでも、選択欄が正しく復元されるようにする。
+ * 遺伝子型の入力値（URL・フォーム）を読む。未入力は野生型、並び順違い・旧表記は正規形にそろえる（SSOT: genetics.php）
  */
-function normalizeEdgedInput(string $value): string {
-    $map = ['+ed' => 'Ed+', 'ed+' => 'Ed+', '+Ed' => 'Ed+', 'eded' => 'EdEd'];
-    return $map[$value] ?? $value;
+function genotypeInput(string $field, string $locus, string $sex): string {
+    $value = $_REQUEST[$field] ?? AgapornisLoci::wildGenotype($locus, $sex);
+    return AgapornisLoci::canonicalGenotype($locus, (string)$value);
+}
+
+/**
+ * 遺伝子型の選択欄（選択肢と表記は AgapornisLoci::GENOTYPE_OPTIONS が正本）
+ */
+function renderGenotypeSelect(string $name, string $locus, string $sex, string $selected): string {
+    $opt = AgapornisLoci::GENOTYPE_OPTIONS[$locus] ?? [];
+    $list = $opt[$sex] ?? ($opt['options'] ?? []);
+    $html = '<select name="' . htmlspecialchars($name) . '">';
+    foreach ($list as [$value, $label]) {
+        $html .= '<option value="' . htmlspecialchars($value) . '"' . ($selected === $value ? ' selected' : '') . '>' . htmlspecialchars($label) . '</option>';
+    }
+    return $html . '</select>';
 }
 
 /**
@@ -603,6 +615,8 @@ const LINKAGE_GROUPS = <?= json_encode(AgapornisLoci::LINKAGE_GROUPS) ?>;
 const RECOMBINATION_RATES = <?= json_encode(AgapornisLoci::RECOMBINATION_RATES) ?>;
 // 血統書用の遺伝情報（座位順・野生型・学術表記・確信度表）。pedigree.js は判定せずこれを引く（SSOT）
 const PEDIGREE_DATA = <?= json_encode(GenotypeEstimator::pedigreeData()) ?>;
+// 遺伝の事実の表（座位ごとの遺伝子型・色ごとの遺伝子型・繁殖計画の目標など）。JS は genodata.js 経由でこれを引く（SSOT）
+const GENOTYPE_DATA = <?= json_encode(AgapornisLoci::genotypeData()) ?>;
 const INDEPENDENT_LOCI = <?= json_encode(AgapornisLoci::INDEPENDENT_LOCI) ?>;
 </script>
 </head>
@@ -1329,35 +1343,35 @@ const INDEPENDENT_LOCI = <?= json_encode(AgapornisLoci::INDEPENDENT_LOCI) ?>;
                 // 遺伝子型直接入力の値（v6.7.3: aq対応）
                 $fDbId = $_REQUEST['f_db_id'] ?? '';
                 $mDbId = $_REQUEST['m_db_id'] ?? '';
-                $fParblue = $_REQUEST['f_parblue'] ?? '++';
-                $fIno = $_REQUEST['f_ino'] ?? '++';
-                $fDark = $_REQUEST['f_dark'] ?? 'dd';
-                $fOpaline = $_REQUEST['f_opaline'] ?? '++';
-                $fCinnamon = $_REQUEST['f_cinnamon'] ?? '++';
-                $fPied = $_REQUEST['f_pirec'] ?? '++';
-                $mParblue = $_REQUEST['m_parblue'] ?? '++';
-                $mIno = $_REQUEST['m_ino'] ?? '+W';
-                $mDark = $_REQUEST['m_dark'] ?? 'dd';
-                $mOpaline = $_REQUEST['m_opaline'] ?? '+W';
-                $mCinnamon = $_REQUEST['m_cinnamon'] ?? '+W';
-                $mPied = $_REQUEST['m_pirec'] ?? '++';
+                $fParblue = genotypeInput('f_parblue', 'parblue', 'male');
+                $fIno = genotypeInput('f_ino', 'ino', 'male');
+                $fDark = genotypeInput('f_dark', 'dark', 'male');
+                $fOpaline = genotypeInput('f_opaline', 'opaline', 'male');
+                $fCinnamon = genotypeInput('f_cinnamon', 'cinnamon', 'male');
+                $fPied = genotypeInput('f_pirec', 'pied_rec', 'male');
+                $mParblue = genotypeInput('m_parblue', 'parblue', 'female');
+                $mIno = genotypeInput('m_ino', 'ino', 'female');
+                $mDark = genotypeInput('m_dark', 'dark', 'female');
+                $mOpaline = genotypeInput('m_opaline', 'opaline', 'female');
+                $mCinnamon = genotypeInput('m_cinnamon', 'cinnamon', 'female');
+                $mPied = genotypeInput('m_pirec', 'pied_rec', 'female');
                 // v6.8追加: 14座位対応
-$fVio = $_REQUEST['f_vio'] ?? 'vv';
-$fPidom = $_REQUEST['f_pidom'] ?? '++';
-$fFlp = $_REQUEST['f_flp'] ?? '++';
-$fFlb = $_REQUEST['f_flb'] ?? '++';
-$fDil = $_REQUEST['f_dil'] ?? '++';
-$fEd = normalizeEdgedInput($_REQUEST['f_ed'] ?? '++');
-$fOf = $_REQUEST['f_of'] ?? '++';
-$fPh = $_REQUEST['f_ph'] ?? '++';
-$mVio = $_REQUEST['m_vio'] ?? 'vv';
-$mPidom = $_REQUEST['m_pidom'] ?? '++';
-$mFlp = $_REQUEST['m_flp'] ?? '++';
-$mFlb = $_REQUEST['m_flb'] ?? '++';
-$mDil = $_REQUEST['m_dil'] ?? '++';
-$mEd = normalizeEdgedInput($_REQUEST['m_ed'] ?? '++');
-$mOf = $_REQUEST['m_of'] ?? '++';
-$mPh = $_REQUEST['m_ph'] ?? '++';
+$fVio = genotypeInput('f_vio', 'violet', 'male');
+$fPidom = genotypeInput('f_pidom', 'pied_dom', 'male');
+$fFlp = genotypeInput('f_flp', 'fallow_pale', 'male');
+$fFlb = genotypeInput('f_flb', 'fallow_bronze', 'male');
+$fDil = genotypeInput('f_dil', 'dilute', 'male');
+$fEd = genotypeInput('f_ed', 'edged', 'male');
+$fOf = genotypeInput('f_of', 'orangeface', 'male');
+$fPh = genotypeInput('f_ph', 'pale_headed', 'male');
+$mVio = genotypeInput('m_vio', 'violet', 'female');
+$mPidom = genotypeInput('m_pidom', 'pied_dom', 'female');
+$mFlp = genotypeInput('m_flp', 'fallow_pale', 'female');
+$mFlb = genotypeInput('m_flb', 'fallow_bronze', 'female');
+$mDil = genotypeInput('m_dil', 'dilute', 'female');
+$mEd = genotypeInput('m_ed', 'edged', 'female');
+$mOf = genotypeInput('m_of', 'orangeface', 'female');
+$mPh = genotypeInput('m_ph', 'pale_headed', 'female');
                 ?>
                 <form method="GET" action="#feasibility-result" class="card" id="feasibilityForm" onsubmit="return window._allowSubmit;"><input type="hidden" name="action" value="calculate">
 
@@ -1397,20 +1411,20 @@ $mPh = $_REQUEST['m_ph'] ?? '++';
                         
                         <!-- Genotype inputs (v6.7.3: aq対応) -->
                         <div id="f_genotype_inputs" class="input-panel"<?= $fMode !== 'genotype' ? ' style="display:none;"' : '' ?>>
-                            <div class="form-group"><label>Parblue</label><select name="f_parblue"><?php foreach(['++=B⁺/B⁺','+aq=B⁺/b^aq','aqaq=b^aq/b^aq','+tq=B⁺/b^tq','tqtq=b^tq/b^tq','tqaq=b^tq/b^aq'] as $o){$p=explode('=',$o);echo '<option value="'.$p[0].'"'.($fParblue===$p[0]?' selected':'').'>'.$p[1].'</option>';}?></select></div>
-                            <div class="form-group"><label>INO</label><select name="f_ino"><?php foreach(['++'=>'Z⁺/Z⁺','+ino'=>'Z⁺/Z^ino','inoino'=>'Z^ino/Z^ino','+pld'=>'Z⁺/Z^pld','pldpld'=>'Z^pld/Z^pld','pldino'=>'Z^pld/Z^ino'] as $v=>$l){echo '<option value="'.$v.'"'.($fIno===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-                            <div class="form-group"><label>Dark</label><select name="f_dark"><?php foreach(['dd'=>'d/d','Dd'=>'D/d','DD'=>'D/D'] as $v=>$l){echo '<option value="'.$v.'"'.($fDark===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-                            <div class="form-group"><label>Opaline</label><select name="f_opaline"><?php foreach(['++'=>'Z⁺/Z⁺','+op'=>'Z⁺/Z^op','opop'=>'Z^op/Z^op'] as $v=>$l){echo '<option value="'.$v.'"'.($fOpaline===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-                            <div class="form-group"><label>Cinnamon</label><select name="f_cinnamon"><?php foreach(['++'=>'Z⁺/Z⁺','+cin'=>'Z⁺/Z^cin','cincin'=>'Z^cin/Z^cin'] as $v=>$l){echo '<option value="'.$v.'"'.($fCinnamon===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-                            <div class="form-group"><label>Pied</label><select name="f_pirec"><?php foreach(['++'=>'+/+','+pi'=>'+/pi','pipi'=>'pi/pi'] as $v=>$l){echo '<option value="'.$v.'"'.($fPied===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-                        <div class="form-group"><label>Violet</label><select name="f_vio"><?php foreach(['vv'=>'v/v','Vv'=>'V/v','VV'=>'V/V'] as $v=>$l){echo '<option value="'.$v.'"'.(($fVio??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Dom Pied</label><select name="f_pidom"><?php foreach(['++'=>'+/+','Pi+'=>'Pi/+','PiPi'=>'Pi/Pi'] as $v=>$l){echo '<option value="'.$v.'"'.(($fPidom??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Pale Fallow</label><select name="f_flp"><?php foreach(['++'=>'+/+','+flp'=>'+/flp','flpflp'=>'flp/flp'] as $v=>$l){echo '<option value="'.$v.'"'.(($fFlp??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Bronze Fallow</label><select name="f_flb"><?php foreach(['++'=>'+/+','+flb'=>'+/flb','flbflb'=>'flb/flb'] as $v=>$l){echo '<option value="'.$v.'"'.(($fFlb??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Dilute</label><select name="f_dil"><?php foreach(['++'=>'+/+','+dil'=>'+/dil','dildil'=>'dil/dil'] as $v=>$l){echo '<option value="'.$v.'"'.(($fDil??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Edged</label><select name="f_ed"><?php foreach(['++'=>'+/+','Ed+'=>'Ed/+','EdEd'=>'Ed/Ed'] as $v=>$l){echo '<option value="'.$v.'"'.(($fEd??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Orangeface</label><select name="f_of"><?php foreach(['++'=>'+/+','+of'=>'+/of','ofof'=>'of/of'] as $v=>$l){echo '<option value="'.$v.'"'.(($fOf??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Pale Headed</label><select name="f_ph"><?php foreach(['++'=>'+/+','+ph'=>'+/ph','phph'=>'ph/ph'] as $v=>$l){echo '<option value="'.$v.'"'.(($fPh??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
+                            <div class="form-group"><label>Parblue</label><?= renderGenotypeSelect('f_parblue', 'parblue', 'male', $fParblue) ?></div>
+                            <div class="form-group"><label>INO</label><?= renderGenotypeSelect('f_ino', 'ino', 'male', $fIno) ?></div>
+                            <div class="form-group"><label>Dark</label><?= renderGenotypeSelect('f_dark', 'dark', 'male', $fDark) ?></div>
+                            <div class="form-group"><label>Opaline</label><?= renderGenotypeSelect('f_opaline', 'opaline', 'male', $fOpaline) ?></div>
+                            <div class="form-group"><label>Cinnamon</label><?= renderGenotypeSelect('f_cinnamon', 'cinnamon', 'male', $fCinnamon) ?></div>
+                            <div class="form-group"><label>Pied</label><?= renderGenotypeSelect('f_pirec', 'pied_rec', 'male', $fPied) ?></div>
+                        <div class="form-group"><label>Violet</label><?= renderGenotypeSelect('f_vio', 'violet', 'male', $fVio) ?></div>
+<div class="form-group"><label>Dom Pied</label><?= renderGenotypeSelect('f_pidom', 'pied_dom', 'male', $fPidom) ?></div>
+<div class="form-group"><label>Pale Fallow</label><?= renderGenotypeSelect('f_flp', 'fallow_pale', 'male', $fFlp) ?></div>
+<div class="form-group"><label>Bronze Fallow</label><?= renderGenotypeSelect('f_flb', 'fallow_bronze', 'male', $fFlb) ?></div>
+<div class="form-group"><label>Dilute</label><?= renderGenotypeSelect('f_dil', 'dilute', 'male', $fDil) ?></div>
+<div class="form-group"><label>Edged</label><?= renderGenotypeSelect('f_ed', 'edged', 'male', $fEd) ?></div>
+<div class="form-group"><label>Orangeface</label><?= renderGenotypeSelect('f_of', 'orangeface', 'male', $fOf) ?></div>
+<div class="form-group"><label>Pale Headed</label><?= renderGenotypeSelect('f_ph', 'pale_headed', 'male', $fPh) ?></div>
                     </div>                  
                     <!-- ♀ Mother -->
                     <div class="parent-block">
@@ -1446,20 +1460,20 @@ $mPh = $_REQUEST['m_ph'] ?? '++';
                         
                         <!-- Genotype inputs (v6.7.3: aq対応) -->
                         <div id="m_genotype_inputs" class="input-panel"<?= $mMode !== 'genotype' ? ' style="display:none;"' : '' ?>>
-                            <div class="form-group"><label>Parblue</label><select name="m_parblue"><?php foreach(['++=B⁺/B⁺','+aq=B⁺/b^aq','aqaq=b^aq/b^aq','+tq=B⁺/b^tq','tqtq=b^tq/b^tq','tqaq=b^tq/b^aq'] as $o){$p=explode('=',$o);echo '<option value="'.$p[0].'"'.($mParblue===$p[0]?' selected':'').'>'.$p[1].'</option>';}?></select></div>
-                            <div class="form-group"><label>INO</label><select name="m_ino"><?php foreach(['+W'=>'Z⁺/W','inoW'=>'Z^ino/W','pldW'=>'Z^pld/W'] as $v=>$l){echo '<option value="'.$v.'"'.($mIno===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-                            <div class="form-group"><label>Dark</label><select name="m_dark"><?php foreach(['dd'=>'d/d','Dd'=>'D/d','DD'=>'D/D'] as $v=>$l){echo '<option value="'.$v.'"'.($mDark===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-                            <div class="form-group"><label>Opaline</label><select name="m_opaline"><?php foreach(['+W'=>'Z⁺/W','opW'=>'Z^op/W'] as $v=>$l){echo '<option value="'.$v.'"'.($mOpaline===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-                            <div class="form-group"><label>Cinnamon</label><select name="m_cinnamon"><?php foreach(['+W'=>'Z⁺/W','cinW'=>'Z^cin/W'] as $v=>$l){echo '<option value="'.$v.'"'.($mCinnamon===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-                            <div class="form-group"><label>Pied</label><select name="m_pirec"><?php foreach(['++'=>'+/+','+pi'=>'+/pi','pipi'=>'pi/pi'] as $v=>$l){echo '<option value="'.$v.'"'.($mPied===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-                            <div class="form-group"><label>Violet</label><select name="m_vio"><?php foreach(['vv'=>'v/v','Vv'=>'V/v','VV'=>'V/V'] as $v=>$l){echo '<option value="'.$v.'"'.(($mVio??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Dom Pied</label><select name="m_pidom"><?php foreach(['++'=>'+/+','Pi+'=>'Pi/+','PiPi'=>'Pi/Pi'] as $v=>$l){echo '<option value="'.$v.'"'.(($mPidom??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Pale Fallow</label><select name="m_flp"><?php foreach(['++'=>'+/+','+flp'=>'+/flp','flpflp'=>'flp/flp'] as $v=>$l){echo '<option value="'.$v.'"'.(($mFlp??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Bronze Fallow</label><select name="m_flb"><?php foreach(['++'=>'+/+','+flb'=>'+/flb','flbflb'=>'flb/flb'] as $v=>$l){echo '<option value="'.$v.'"'.(($mFlb??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Dilute</label><select name="m_dil"><?php foreach(['++'=>'+/+','+dil'=>'+/dil','dildil'=>'dil/dil'] as $v=>$l){echo '<option value="'.$v.'"'.(($mDil??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Edged</label><select name="m_ed"><?php foreach(['++'=>'+/+','Ed+'=>'Ed/+','EdEd'=>'Ed/Ed'] as $v=>$l){echo '<option value="'.$v.'"'.(($mEd??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Orangeface</label><select name="m_of"><?php foreach(['++'=>'+/+','+of'=>'+/of','ofof'=>'of/of'] as $v=>$l){echo '<option value="'.$v.'"'.(($mOf??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
-<div class="form-group"><label>Pale Headed</label><select name="m_ph"><?php foreach(['++'=>'+/+','+ph'=>'+/ph','phph'=>'ph/ph'] as $v=>$l){echo '<option value="'.$v.'"'.(($mPh??'')===$v?' selected':'').'>'.$l.'</option>';}?></select></div>
+                            <div class="form-group"><label>Parblue</label><?= renderGenotypeSelect('m_parblue', 'parblue', 'female', $mParblue) ?></div>
+                            <div class="form-group"><label>INO</label><?= renderGenotypeSelect('m_ino', 'ino', 'female', $mIno) ?></div>
+                            <div class="form-group"><label>Dark</label><?= renderGenotypeSelect('m_dark', 'dark', 'female', $mDark) ?></div>
+                            <div class="form-group"><label>Opaline</label><?= renderGenotypeSelect('m_opaline', 'opaline', 'female', $mOpaline) ?></div>
+                            <div class="form-group"><label>Cinnamon</label><?= renderGenotypeSelect('m_cinnamon', 'cinnamon', 'female', $mCinnamon) ?></div>
+                            <div class="form-group"><label>Pied</label><?= renderGenotypeSelect('m_pirec', 'pied_rec', 'female', $mPied) ?></div>
+                            <div class="form-group"><label>Violet</label><?= renderGenotypeSelect('m_vio', 'violet', 'female', $mVio) ?></div>
+<div class="form-group"><label>Dom Pied</label><?= renderGenotypeSelect('m_pidom', 'pied_dom', 'female', $mPidom) ?></div>
+<div class="form-group"><label>Pale Fallow</label><?= renderGenotypeSelect('m_flp', 'fallow_pale', 'female', $mFlp) ?></div>
+<div class="form-group"><label>Bronze Fallow</label><?= renderGenotypeSelect('m_flb', 'fallow_bronze', 'female', $mFlb) ?></div>
+<div class="form-group"><label>Dilute</label><?= renderGenotypeSelect('m_dil', 'dilute', 'female', $mDil) ?></div>
+<div class="form-group"><label>Edged</label><?= renderGenotypeSelect('m_ed', 'edged', 'female', $mEd) ?></div>
+<div class="form-group"><label>Orangeface</label><?= renderGenotypeSelect('m_of', 'orangeface', 'female', $mOf) ?></div>
+<div class="form-group"><label>Pale Headed</label><?= renderGenotypeSelect('m_ph', 'pale_headed', 'female', $mPh) ?></div>
                         </div>
                     </div>
 
@@ -1877,6 +1891,7 @@ $mPh = $_REQUEST['m_ph'] ?? '++';
             </details>
         </footer>
     </div>
+    <script src="genodata.js?v=<?= time() ?>"></script>
     <script src="guardian.js?v=<?= time() ?>"></script>
     <script src="birds.js?v=<?= time() ?>"></script>
     <script src="breeding.js?v=<?= time() ?>"></script>
@@ -2125,16 +2140,14 @@ function downloadFullCSV() {
         // 遺伝構成を短縮表示（SSOT: v7.0座位名を使用）
         function formatGenoShort(geno, sex) {
             if (!geno || Object.keys(geno).length === 0) return 'WT';
-            const parts = [];
-            if (geno.parblue && geno.parblue !== '++') parts.push(geno.parblue);
-            if (geno.ino && geno.ino !== '++' && geno.ino !== '+W') parts.push(geno.ino);
-            if (geno.dark && geno.dark !== 'dd') parts.push(geno.dark);
-            if (geno.opaline && geno.opaline !== '++' && geno.opaline !== '+W') parts.push('op');
-            if (geno.cinnamon && geno.cinnamon !== '++' && geno.cinnamon !== '+W') parts.push('cin');
-            if (geno.pied_rec && geno.pied_rec !== '++') parts.push('pirec');
-            if (geno.pied_dom && geno.pied_dom !== '++') parts.push('pidom');
-            if (geno.fallow_pale && geno.fallow_pale !== '++') parts.push('flp');
-            if (geno.fallow_bronze && geno.fallow_bronze !== '++') parts.push('flb');
+            // SSOT: 野生型かどうかは GENOTYPE_DATA（genodata.js）で引く。並びと表示（遺伝子型そのもの／略号）は表示用
+            const shown = [
+                ['parblue', null], ['ino', null], ['dark', null], ['opaline', 'op'], ['cinnamon', 'cin'],
+                ['pied_rec', 'pirec'], ['pied_dom', 'pidom'], ['fallow_pale', 'flp'], ['fallow_bronze', 'flb']
+            ];
+            const parts = shown
+                .filter(([locus]) => geno[locus] && !GenoData.isWild(locus, geno[locus]))
+                .map(([locus, label]) => label || geno[locus]);
             return parts.length > 0 ? parts.join('/') : 'WT';
         }
         /**

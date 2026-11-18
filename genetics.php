@@ -277,10 +277,237 @@ final class AgapornisLoci
     public static function resolveDarkGenotype(array $phenotype, ?string $default = null): ?string
     {
         $darkness = strtolower((string)($phenotype['darkness'] ?? ''));
-        if ($darkness === 'df') return 'DD';
-        if ($darkness === 'sf') return 'Dd';
+        if (isset(self::DARKNESS_TO_DARK[$darkness])) return self::DARKNESS_TO_DARK[$darkness];
         $colorDef = self::COLOR_DEFINITIONS[strtolower((string)($phenotype['baseColor'] ?? ''))] ?? null;
         return $colorDef['genotype']['dark'] ?? $default;
+    }
+
+    /** 濃さ欄の値 → ダーク因子の遺伝子型（resolveDarkGenotype と JS の GENOTYPE_DATA.darknessByDark の正本） */
+    public const DARKNESS_TO_DARK = ['sf' => 'Dd', 'df' => 'DD'];
+
+    /** 繁殖計画（planner.js）が伴性座位に使う短いキー → 座位 */
+    public const PLANNER_SLR_KEYS = ['ino' => 'ino', 'cin' => 'cinnamon', 'op' => 'opaline'];
+
+    /** 色キーを組み立てるときの部品（planner.js 由来の命名。座位 → 部品名。この順に並べる） */
+    private const COLOR_KEY_PARTS = [
+        'opaline' => 'opaline', 'cinnamon' => 'cinnamon', 'fallow_pale' => 'fallow',
+        'pied_rec' => 'pied', 'violet' => 'violet', 'dilute' => 'dilute', 'edged' => 'edged',
+    ];
+
+    /** INO 型の表示の優先順（健康評価の文言で、両親のうちより白い系統を示す） */
+    private const INO_TYPE_PRIORITY = ['pure_white', 'creamino', 'creamino_seagreen', 'lutino'];
+
+    /**
+     * 色の署名（表現している座位の「座位=表現型の形」を LOCI の順に ; でつなぐ）。JS（birds.js）も同じ並べ方で作る。
+     */
+    private static function colorSignature(array $genotype, array $loci): string
+    {
+        $parts = [];
+        foreach (array_keys(self::LOCI) as $locus) {
+            $form = $loci[$locus]['genotypes'][$genotype[$locus] ?? '']['phenoForm'] ?? null;
+            if ($form !== null) $parts[] = $locus . '=' . $form;
+        }
+        return implode(';', $parts);
+    }
+
+    /**
+     * 座位ごとの正規の遺伝子型（GENOTYPE_OPTIONS が正本）
+     * @return array{male: string[], female: string[]}
+     */
+    public static function canonicalGenotypes(string $locusKey): array
+    {
+        $opt = self::GENOTYPE_OPTIONS[$locusKey] ?? [];
+        $pick = fn($list) => array_map(fn($o) => (string)$o[0], $list ?? []);
+        if (isset($opt['male'])) return ['male' => $pick($opt['male']), 'female' => $pick($opt['female'] ?? [])];
+        $all = $pick($opt['options'] ?? []);
+        return ['male' => $all, 'female' => $all];
+    }
+
+    /** 座位の野生型の遺伝子型（オス/メス） */
+    public static function wildGenotype(string $locusKey, string $sex = 'male'): string
+    {
+        $w = self::wildAllele($locusKey) ?? '+';
+        $sl = (bool)(self::LOCI[$locusKey]['sex_linked'] ?? false);
+        return ($sl && $sex === 'female') ? $w . 'W' : $w . $w;
+    }
+
+    /** 遺伝子型を正規の表記にそろえる（例: ino+ → +ino、eded → EdEd）。解析できなければそのまま返す。 */
+    public static function canonicalGenotype(string $locusKey, string $genotype): string
+    {
+        return self::genotypeData()['loci'][$locusKey]['genotypes'][$genotype]['canonical'] ?? $genotype;
+    }
+
+    /**
+     * JS が遺伝の事実を引くための表（index.php が GENOTYPE_DATA として注入。JS 側の引き出しは genodata.js）
+     *
+     * - loci[座位]: sexLinked / wild{male,female} / genotypes[表記] / byAlleles[アレルの組]
+     *     genotypes[表記] = {canonical, alleles, mutant, dose, wild, expressed, hemi}
+     *     表記は正規形に加えて、並び順違い（ino+）と旧表記（eded）も引けるようにする
+     * - byColor[色][性別]: 色の定義の遺伝子型（伴性メスはヘミ接合に変換）
+     * - targets[色]: 繁殖計画の目標（required / slr / tier / minGen / difficulty / inbreedingLimit）
+     * - plannerSlrKeys: 繁殖計画の伴性キー → 座位
+     * - inoTypes: [[パーブルーの遺伝子型, INO 色キー], ...]（表示の優先順）
+     * - colorKey: 遺伝子型から色キーを組み立てる規則（birds.js の calculatePhenotype が解釈する）
+     * - darknessByDark: ダーク因子の遺伝子型 → 濃さ欄の値
+     */
+    public static function genotypeData(): array
+    {
+        static $cache = null;
+        if ($cache !== null) return $cache;
+
+        $loci = [];
+        foreach (self::LOCI as $key => $cfg) {
+            $names = array_map('strval', array_keys($cfg['alleles'] ?? []));
+            $wild = self::wildAllele($key) ?? '+';
+            $sl = (bool)($cfg['sex_linked'] ?? false);
+            $canon = self::canonicalGenotypes($key);
+            $sortKey = function (array $al): string { sort($al); return implode('|', $al) . (count($al) === 1 ? '|W' : ''); };
+            $byAlleles = [];
+            foreach (array_merge($canon['male'], $canon['female']) as $g) {
+                $al = self::splitGenotype($key, $g);
+                if ($al !== null) $byAlleles[$sortKey($al)] = $g;
+            }
+            $info = function (array $al) use ($key, $wild, $byAlleles, $sortKey): array {
+                $canonical = $byAlleles[$sortKey($al)] ?? implode('', $al) . (count($al) === 1 ? 'W' : '');
+                $calleles = self::splitGenotype($key, $canonical) ?? $al;
+                $mutant = array_values(array_filter($calleles, fn($a) => $a !== $wild));
+                $hemi = (count($calleles) === 2 && $calleles[0] === $calleles[1] && $calleles[0] !== $wild)
+                    ? ($byAlleles[$sortKey([$calleles[0]])] ?? null) : null;
+                $expressed = self::isExpressedAlleles($key, $calleles);
+                // 表現型の形: 表現している遺伝子型を、色の定義の書き方（オス形）にそろえたもの。伴性メスの aW は aa
+                $phenoForm = !$expressed ? null
+                    : (count($calleles) === 1 ? ($byAlleles[$sortKey([$calleles[0], $calleles[0]])] ?? $canonical) : $canonical);
+                return [
+                    'canonical' => $canonical,
+                    'alleles' => $calleles,
+                    'mutant' => $mutant,
+                    'dose' => count($mutant),
+                    'wild' => count($mutant) === 0,
+                    'expressed' => $expressed,
+                    'hemi' => $hemi,
+                    'phenoForm' => $phenoForm,
+                ];
+            };
+            $genotypes = [];
+            foreach ($names as $a) {
+                foreach ($names as $b) $genotypes[$a . $b] = $info([$a, $b]);
+                if ($sl) $genotypes[$a . 'W'] = $info([$a]);
+            }
+            // 旧表記（小文字の ed など）も正規形に引けるようにする
+            foreach (array_keys($genotypes) as $g) {
+                foreach ([strtolower($g)] as $alias) {
+                    if ($alias !== $g && !isset($genotypes[$alias]) && self::splitGenotype($key, $alias) !== null) {
+                        $genotypes[$alias] = $genotypes[$g];
+                    }
+                }
+            }
+            $loci[$key] = [
+                'sexLinked' => $sl,
+                'wild' => ['male' => self::wildGenotype($key, 'male'), 'female' => self::wildGenotype($key, 'female')],
+                'genotypes' => $genotypes,
+                'byAlleles' => $byAlleles,
+            ];
+        }
+
+        // 色ごとの遺伝子型（伴性メスはヘミ接合）
+        $byColor = [];
+        foreach (self::COLOR_DEFINITIONS as $color => $def) {
+            $male = $def['genotype'] ?? [];
+            $female = $male;
+            foreach ($male as $l => $g) {
+                if (!empty($loci[$l]['sexLinked'])) {
+                    $female[$l] = $loci[$l]['genotypes'][$g]['hemi'] ?? $loci[$l]['wild']['female'];
+                    if (!empty($loci[$l]['genotypes'][$g]['wild'])) $female[$l] = $loci[$l]['wild']['female'];
+                }
+            }
+            $byColor[$color] = ['male' => $male, 'female' => $female];
+        }
+
+        // 繁殖計画の目標
+        $slrByLocus = array_flip(self::PLANNER_SLR_KEYS);
+        $pathFinder = new PathFinder();
+        $targets = [];
+        foreach (self::COLOR_DEFINITIONS as $color => $def) {
+            $required = []; $slr = []; $count = 0; $limit = false;
+            foreach (($def['genotype'] ?? []) as $l => $g) {
+                $i = $loci[$l]['genotypes'][$g] ?? null;
+                if ($i === null) continue;
+                if (isset($slrByLocus[$l])) {
+                    if (!$i['wild']) { $slr[$slrByLocus[$l]] = array_values(array_filter([$i['canonical'], $i['hemi']])); $count++; }
+                } elseif ($l === 'parblue' || $l === 'dark' || !$i['wild']) {
+                    $required[$l] = [$i['canonical']];
+                    if (!$i['wild']) $count++;
+                }
+                // INO・パリッド・ファローの発現は近親交配の世代制限（2世代）の対象
+                if (!$i['wild'] && $i['expressed'] && in_array($l, ['ino', 'fallow_pale', 'fallow_bronze'], true)) $limit = true;
+            }
+            $difficulty = ['none', 'low', 'mid', 'high'][$count] ?? 'extreme';
+            $targets[$color] = [
+                'required' => (object)$required,
+                'slr' => (object)$slr,
+                'tier' => $def['tier'] ?? 1,
+                'minGen' => $pathFinder->findPath((string)$color)['minGenerations'] ?? 0,
+                'difficulty' => $difficulty,
+                'inbreedingLimit' => $limit ? 2 : null,
+            ];
+        }
+
+        // INO 型（パーブルー → INO 色）と、色キーの組み立て規則（COLOR_DEFINITIONS から導く）
+        $inoByParblue = []; $baseByParblue = []; $darkByParblue = [];
+        foreach (self::COLOR_DEFINITIONS as $color => $def) {
+            $g = $def['genotype'] ?? [];
+            $keys = array_keys($g); sort($keys);
+            $pb = $g['parblue'] ?? null;
+            if ($pb === null) continue;
+            if ($keys === ['ino', 'parblue'] && ($loci['ino']['genotypes'][$g['ino']]['mutant'] ?? []) === ['ino', 'ino']) {
+                $inoByParblue[$pb] = (string)$color;
+            }
+            if ($keys === ['dark', 'parblue']) {
+                $dose = $loci['dark']['genotypes'][$g['dark']]['dose'] ?? null;
+                if ($dose === 0) $baseByParblue[$pb] = (string)$color;
+                elseif ($dose !== null) $darkByParblue[$pb][$g['dark']] = (string)$color;
+            }
+        }
+        $inoTypes = [];
+        foreach (self::INO_TYPE_PRIORITY as $color) {
+            $pb = array_search($color, $inoByParblue, true);
+            if ($pb !== false) $inoTypes[] = [$pb, $color];
+        }
+        $expressedWith = function (string $l, callable $pred) use ($loci): array {
+            return array_values(array_keys(array_filter($loci[$l]['genotypes'], fn($i, $g) => $i['canonical'] === $g && $i['expressed'] && $pred($i), ARRAY_FILTER_USE_BOTH)));
+        };
+        $steps = [
+            ['locus' => 'ino', 'genotypes' => $expressedWith('ino', fn($i) => !in_array('pld', $i['mutant'], true)), 'replaceBase' => $inoByParblue],
+            ['locus' => 'ino', 'genotypes' => $expressedWith('ino', fn($i) => in_array('pld', $i['mutant'], true)), 'part' => 'pallid'],
+        ];
+        foreach (['opaline', 'cinnamon'] as $l) $steps[] = ['locus' => $l, 'genotypes' => $expressedWith($l, fn($i) => true), 'part' => self::COLOR_KEY_PARTS[$l]];
+        $steps[] = ['locus' => 'dark', 'genotypes' => $expressedWith('dark', fn($i) => true), 'modifyBase' => $darkByParblue];
+        foreach (['fallow_pale', 'pied_rec', 'violet', 'dilute', 'edged'] as $l) $steps[] = ['locus' => $l, 'genotypes' => $expressedWith($l, fn($i) => true), 'part' => self::COLOR_KEY_PARTS[$l]];
+
+        $darknessByDark = [self::wildGenotype('dark') => 'none'] + array_flip(self::DARKNESS_TO_DARK);
+
+        // 色の署名 → 色キー（定義済みの色を遺伝子型から引く。署名は表現している座位の「座位=表現型の形」を LOCI の順に並べたもの）
+        $colorBySignature = [];
+        foreach (self::COLOR_DEFINITIONS as $color => $def) {
+            $sig = self::colorSignature($def['genotype'] ?? [], $loci);
+            if (!isset($colorBySignature[$sig])) $colorBySignature[$sig] = (string)$color;
+        }
+
+        return $cache = [
+            'loci' => $loci,
+            'byColor' => $byColor,
+            'targets' => $targets,
+            'plannerSlrKeys' => self::PLANNER_SLR_KEYS,
+            'inoTypes' => $inoTypes,
+            'colorKey' => [
+                'parblueLocus' => 'parblue',
+                'baseByParblue' => $baseByParblue,
+                'defaultParblue' => self::wildGenotype('parblue'),
+                'steps' => $steps,
+                'bySignature' => $colorBySignature,
+            ],
+            'darknessByDark' => $darknessByDark,
+        ];
     }
 
     /**

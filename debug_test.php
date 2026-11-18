@@ -2139,6 +2139,26 @@ if ($runTests) {
         return [!$failed, $failed ? 'NG: ' . implode(' / ', $failed) . ($missing ? ' missing=' . implode(',', $missing) : '') : count($checks) . ' checks OK'];
     });
 
+    // Test 22-14: JS 向けの正本の表（GENOTYPE_DATA）が色の定義・選択肢から正しく作られている
+    $reg('Genotype data: canonical forms, colour signatures, planner targets, INO types', function () {
+        $d = AgapornisLoci::genotypeData();
+        $checks = [
+            'ino+ -> +ino' => AgapornisLoci::canonicalGenotype('ino', 'ino+') === '+ino',
+            'eded -> EdEd' => AgapornisLoci::canonicalGenotype('edged', 'eded') === 'EdEd',
+            'aq+ -> +aq' => AgapornisLoci::canonicalGenotype('parblue', 'aq+') === '+aq',
+            'wild female ino +W' => AgapornisLoci::wildGenotype('ino', 'female') === '+W',
+            'inoW expressed, dose 1' => ($d['loci']['ino']['genotypes']['inoW']['expressed'] ?? null) === true && ($d['loci']['ino']['genotypes']['inoW']['dose'] ?? null) === 1,
+            'every colour has a unique signature' => count($d['colorKey']['bySignature']) === count(AgapornisLoci::COLOR_DEFINITIONS),
+            'lutino target: ino slr + limit 2' => (array)$d['targets']['lutino']['slr'] === ['ino' => ['inoino', 'inoW']] && $d['targets']['lutino']['inbreedingLimit'] === 2,
+            'green target: none, 0 generations' => $d['targets']['green']['difficulty'] === 'none' && $d['targets']['green']['minGen'] === 0,
+            'INO types from colour definitions' => $d['inoTypes'] === [['tqtq', 'pure_white'], ['aqaq', 'creamino'], ['tqaq', 'creamino_seagreen'], ['++', 'lutino']],
+            'darkness by dark' => $d['darknessByDark'] === ['dd' => 'none', 'Dd' => 'sf', 'DD' => 'df'],
+            'pure_white female genotype tqtq/inoW' => $d['byColor']['pure_white']['female'] === ['parblue' => 'tqtq', 'ino' => 'inoW'],
+        ];
+        $failed = array_keys(array_filter($checks, fn($v) => !$v));
+        return [!$failed, $failed ? 'NG: ' . implode(' / ', $failed) : count($checks) . ' checks OK'];
+    });
+
     // Test 22-7: 確信度は表現型から判別できる度合いを反映する
     $reg('GenotypeEstimator: confidence reflects what phenotype can determine', function () use ($locusOf) {
         $est = new GenotypeEstimator();
@@ -2464,6 +2484,14 @@ if ($runTests) {
         </div>
     </div>
 
+    <!-- 正本（genetics.php）から注入する定数（index.php と同じ。JS は表を引くだけ） -->
+    <script>
+    const LOCI_MASTER = <?= json_encode(AgapornisLoci::LOCI) ?>;
+    const COLOR_MASTER = <?= json_encode(AgapornisLoci::COLOR_DEFINITIONS) ?>;
+    const RECOMBINATION_RATES = <?= json_encode(AgapornisLoci::RECOMBINATION_RATES) ?>;
+    const GENOTYPE_DATA = <?= json_encode(AgapornisLoci::genotypeData()) ?>;
+    </script>
+    <script src="genodata.js"></script>
     <!-- Load JS modules for testing -->
     <script src="guardian.js"></script>
     <script src="planner.js"></script>
@@ -2811,7 +2839,7 @@ if ($runTests) {
             );
 
             // Test 9: Difficulty levels are valid
-            const validDifficulties = ['none', 'low', 'mid', 'high'];
+            const validDifficulties = ['none', 'low', 'mid', 'high', 'extreme'];  // lang.php の difficulty_* と同じ段階
             let allValid = true;
             for (const key in TR) {
                 if (TR[key].difficulty && !validDifficulties.includes(TR[key].difficulty)) {

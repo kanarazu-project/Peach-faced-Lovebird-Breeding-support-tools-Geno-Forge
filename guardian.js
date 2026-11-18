@@ -416,15 +416,13 @@ const HealthGuardian = {
             action: this._t('general_limit_action', 'Consider refreshing entire bloodline') });
     },
 
-    _hasINOGenes(geno) { return (geno.ino || '').includes('ino'); },
-    _hasPallidGenes(geno) { return (geno.ino || '').includes('pld'); },
-    // SSOT: fallow_pale と fallow_bronze をチェック
+    // SSOT: 遺伝子型の中身は genodata.js（GENOTYPE_DATA）で引く。座位名・アレル名で問い合わせる
+    _hasINOGenes(geno) { return GenoData.mutantAlleles('ino', geno.ino).includes('ino'); },
+    _hasPallidGenes(geno) { return GenoData.mutantAlleles('ino', geno.ino).includes('pld'); },
     _hasFallowGenes(geno) {
-        const fp = geno.fallow_pale || '';
-        const fb = geno.fallow_bronze || '';
-        return (fp.includes('flp') && fp !== '++') || (fb.includes('flb') && fb !== '++');
+        return GenoData.dose('fallow_pale', geno.fallow_pale) > 0 || GenoData.dose('fallow_bronze', geno.fallow_bronze) > 0;
     },
-    _hasDarkDF(geno) { return geno.dark === 'DD'; },
+    _hasDarkDF(geno) { return GenoData.dose('dark', geno.dark) === 2; },
     
     /**
      * v6.7.5: INO系色名取得（SSOT対応）
@@ -434,20 +432,12 @@ const HealthGuardian = {
      * @returns {string} INO系色名
      */
     _getINOTypeName(mGeno, fGeno) {
-        const mParblue = mGeno.parblue || '++';
-        const fParblue = fGeno.parblue || '++';
-        
-        // 色キーを決定
-        let colorKey;
-        if (mParblue === 'tqtq' || fParblue === 'tqtq') {
-            colorKey = 'pure_white';
-        } else if (mParblue === 'aqaq' || fParblue === 'aqaq') {
-            colorKey = 'creamino';
-        } else if (mParblue === 'tqaq' || fParblue === 'tqaq') {
-            colorKey = 'creamino_seagreen';
-        } else {
-            colorKey = 'lutino';
-        }
+        // SSOT: パーブルー → INO 色の対応と優先順は GENOTYPE_DATA.inoTypes（genetics.php が色の定義から導く）
+        const parblues = [GenoData.canonical('parblue', mGeno.parblue), GenoData.canonical('parblue', fGeno.parblue)];
+        const types = (GenoData.data() || {}).inoTypes || [];
+        const hit = types.find(([pb]) => parblues.includes(pb));
+        const fallback = types.find(([pb]) => pb === GenoData.wildGenotype('parblue'));
+        const colorKey = hit ? hit[1] : (fallback ? fallback[1] : '');
         
         // v7.3: keyToLabel関数でローカライズ（動的変換対応）
         if (typeof keyToLabel === 'function') {

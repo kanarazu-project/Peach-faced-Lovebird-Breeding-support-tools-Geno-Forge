@@ -44,71 +44,18 @@ const BreedingPlanner = {
     // v6.7.4: 近交係数閾値
     INBREEDING_THRESHOLD: 0.125,  // 12.5%
     
-    // v6.7.5: SSOT化 - nameフィールド削除、表示時はCOLOR_LABELS参照
-    // parblue短縮形: ++ (野生型), +aq (アクアヘテロ), +tq (ターコイズヘテロ), aqaq (アクアホモ), tqtq (ターコイズホモ), tqaq (シーグリーン複合)
-    TARGET_REQUIREMENTS: {
-        // グリーン系（野生型）3色
-        green: { required: { parblue: ['++'], dark: ['dd'] }, slr: {}, minGen: 0, difficulty: 'none' },
-        darkgreen: { required: { parblue: ['++'], dark: ['Dd'] }, slr: {}, minGen: 1, difficulty: 'low' },
-        olive: { required: { parblue: ['++'], dark: ['DD'] }, slr: {}, minGen: 2, difficulty: 'mid' },
-        
-        // アクア系（旧ブルー系）3色
-        aqua: { required: { parblue: ['aqaq'], dark: ['dd'] }, slr: {}, minGen: 1, difficulty: 'low' },
-        aqua_dark: { required: { parblue: ['aqaq'], dark: ['Dd'] }, slr: {}, minGen: 2, difficulty: 'mid' },
-        aqua_dd: { required: { parblue: ['aqaq'], dark: ['DD'] }, slr: {}, minGen: 3, difficulty: 'mid' },
-        
-        // ターコイズ系（Whitefaced）4色
-        turquoise: { required: { parblue: ['tqtq'], dark: ['dd'] }, slr: {}, minGen: 2, difficulty: 'mid' },
-        turquoise_dark: { required: { parblue: ['tqtq'], dark: ['Dd', 'DD'] }, slr: {}, minGen: 3, difficulty: 'mid' },
-        seagreen: { required: { parblue: ['tqaq'], dark: ['dd'] }, slr: {}, minGen: 1, difficulty: 'low' },
-        seagreen_dark: { required: { parblue: ['tqaq'], dark: ['Dd', 'DD'] }, slr: {}, minGen: 2, difficulty: 'mid' },
-        
-        // INO系（メラニン欠落・赤目）4色
-        lutino: { required: { parblue: ['++', '+aq', '+tq'] }, slr: { ino: ['inoino', 'inoW'] }, minGen: 2, difficulty: 'high', inbreedingLimit: 2 },
-        creamino: { required: { parblue: ['aqaq'] }, slr: { ino: ['inoino', 'inoW'] }, minGen: 3, difficulty: 'high', inbreedingLimit: 2 },
-        pure_white: { required: { parblue: ['tqtq'] }, slr: { ino: ['inoino', 'inoW'] }, minGen: 3, difficulty: 'high', inbreedingLimit: 2 },
-        creamino_seagreen: { required: { parblue: ['tqaq'] }, slr: { ino: ['inoino', 'inoW'] }, minGen: 3, difficulty: 'high', inbreedingLimit: 2 },
-        
-        // パリッド系（メラニン減少・黒目）4色
-        pallid_green: { required: { parblue: ['++'] }, slr: { ino: ['pldpld', 'pldW'] }, minGen: 2, difficulty: 'high', inbreedingLimit: 2 },
-        pallid_aqua: { required: { parblue: ['aqaq'] }, slr: { ino: ['pldpld', 'pldW'] }, minGen: 3, difficulty: 'high', inbreedingLimit: 2 },
-        pallid_turquoise: { required: { parblue: ['tqtq'] }, slr: { ino: ['pldpld', 'pldW'] }, minGen: 3, difficulty: 'high', inbreedingLimit: 2 },
-        pallid_seagreen: { required: { parblue: ['tqaq'] }, slr: { ino: ['pldpld', 'pldW'] }, minGen: 3, difficulty: 'high', inbreedingLimit: 2 },
-        
-        // シナモン系（茶色メラニン）4色
-        cinnamon_green: { required: { parblue: ['++'] }, slr: { cin: ['cincin', 'cinW'] }, minGen: 2, difficulty: 'mid' },
-        cinnamon_aqua: { required: { parblue: ['aqaq'] }, slr: { cin: ['cincin', 'cinW'] }, minGen: 3, difficulty: 'mid' },
-        cinnamon_turquoise: { required: { parblue: ['tqtq'] }, slr: { cin: ['cincin', 'cinW'] }, minGen: 3, difficulty: 'mid' },
-        cinnamon_seagreen: { required: { parblue: ['tqaq'] }, slr: { cin: ['cincin', 'cinW'] }, minGen: 3, difficulty: 'mid' },
-        
-        // オパーリン系（模様変化）4色
-        opaline_green: { required: { parblue: ['++'] }, slr: { op: ['opop', 'opW'] }, minGen: 2, difficulty: 'mid' },
-        opaline_aqua: { required: { parblue: ['aqaq'] }, slr: { op: ['opop', 'opW'] }, minGen: 3, difficulty: 'mid' },
-        opaline_turquoise: { required: { parblue: ['tqtq'] }, slr: { op: ['opop', 'opW'] }, minGen: 3, difficulty: 'mid' },
-        opaline_seagreen: { required: { parblue: ['tqaq'] }, slr: { op: ['opop', 'opW'] }, minGen: 3, difficulty: 'mid' },
-        
-        // フォロー系（赤目）2色
-        fallow_green: { required: { parblue: ['++'], fl: ['flfl'] }, slr: {}, minGen: 2, difficulty: 'mid', inbreedingLimit: 2 },
-        fallow_aqua: { required: { parblue: ['aqaq'], fl: ['flfl'] }, slr: {}, minGen: 3, difficulty: 'mid', inbreedingLimit: 2 },
-        
-        // パイド系（まだら模様）4色
-        pied_green: { required: { parblue: ['++'], pi: ['pipi'] }, slr: {}, minGen: 2, difficulty: 'mid' },
-        pied_aqua: { required: { parblue: ['aqaq'], pi: ['pipi'] }, slr: {}, minGen: 3, difficulty: 'mid' },
-        pied_turquoise: { required: { parblue: ['tqtq'], pi: ['pipi'] }, slr: {}, minGen: 3, difficulty: 'mid' },
-        pied_seagreen: { required: { parblue: ['tqaq'], pi: ['pipi'] }, slr: {}, minGen: 3, difficulty: 'mid' },
-        
-        // レガシー互換（旧版からの移行用）
-        blue: { required: { parblue: ['aqaq'], dark: ['dd'] }, slr: {}, minGen: 1, difficulty: 'low', legacy: true },
-        cobalt: { required: { parblue: ['aqaq'], dark: ['Dd'] }, slr: {}, minGen: 2, difficulty: 'mid', legacy: true },
-        mauve: { required: { parblue: ['aqaq'], dark: ['DD'] }, slr: {}, minGen: 3, difficulty: 'mid', legacy: true },
-        albino: { required: { parblue: ['tqtq'] }, slr: { ino: ['inoino', 'inoW'] }, minGen: 3, difficulty: 'high', inbreedingLimit: 2, legacy: true },
-        pallid_blue: { required: { parblue: ['aqaq'] }, slr: { ino: ['pldpld', 'pldW'] }, minGen: 3, difficulty: 'high', inbreedingLimit: 2, legacy: true },
-        cinnamon_blue: { required: { parblue: ['aqaq'] }, slr: { cin: ['cincin', 'cinW'] }, minGen: 3, difficulty: 'mid', legacy: true },
-        opaline_blue: { required: { parblue: ['aqaq'] }, slr: { op: ['opop', 'opW'] }, minGen: 3, difficulty: 'mid', legacy: true },
-        fallow_blue: { required: { parblue: ['aqaq'], fl: ['flfl'] }, slr: {}, minGen: 3, difficulty: 'mid', inbreedingLimit: 2, legacy: true },
-        pied_blue: { required: { parblue: ['aqaq'], pi: ['pipi'] }, slr: {}, minGen: 3, difficulty: 'mid', legacy: true }
+    // SSOT: 繁殖計画の目標（必要な遺伝子型・世代数・難易度・近交制限）は genetics.php が色の定義から作る
+    // （AgapornisLoci::genotypeData()['targets']。index.php が GENOTYPE_DATA として注入）
+    get TARGET_REQUIREMENTS() {
+        return (typeof GENOTYPE_DATA !== 'undefined') ? GENOTYPE_DATA.targets : {};
     },
-    
+
+    /** 繁殖計画の伴性キー（ino / cin / op）→ 座位（GENOTYPE_DATA.plannerSlrKeys） */
+    _slrLocus(slrKey) {
+        const keys = (GenoData.data() || {}).plannerSlrKeys || {};
+        return keys[slrKey] || slrKey;
+    },
+
     /**
      * v7.3: 色名取得ヘルパー（keyToLabel対応）
      * 動的変換で任意のカラーキーをローカライズ
@@ -134,92 +81,7 @@ const BreedingPlanner = {
      * @returns {object|null} 要件オブジェクト
      */
     generateRequirementsFromMaster(colorKey) {
-        if (typeof COLOR_MASTER === 'undefined' || !COLOR_MASTER[colorKey]) {
-            return null;
-        }
-        const colorDef = COLOR_MASTER[colorKey];
-        const genotype = colorDef.genotype || {};
-
-        // 常染色体要件を構築
-        const required = {};
-        const slr = {};
-
-        // parblue
-        if (genotype.parblue) {
-            required.parblue = [genotype.parblue];
-        }
-        // dark
-        if (genotype.dark) {
-            required.dark = [genotype.dark];
-        }
-        // violet
-        if (genotype.violet && genotype.violet !== 'vv') {
-            required.violet = [genotype.violet];
-        }
-        // pied_rec
-        if (genotype.pied_rec && genotype.pied_rec !== '++') {
-            required.pied_rec = [genotype.pied_rec];
-        }
-        // pied_dom
-        if (genotype.pied_dom && genotype.pied_dom !== '++') {
-            required.pied_dom = [genotype.pied_dom];
-        }
-        // dilute
-        if (genotype.dilute && genotype.dilute !== '++') {
-            required.dilute = [genotype.dilute];
-        }
-        // edged
-        if (genotype.edged && genotype.edged !== '++') {
-            required.edged = [genotype.edged];
-        }
-        // orangeface
-        if (genotype.orangeface && genotype.orangeface !== '++') {
-            required.orangeface = [genotype.orangeface];
-        }
-        // pale_headed
-        if (genotype.pale_headed && genotype.pale_headed !== '++') {
-            required.pale_headed = [genotype.pale_headed];
-        }
-        // fallow_pale
-        if (genotype.fallow_pale && genotype.fallow_pale !== '++') {
-            required.fallow_pale = [genotype.fallow_pale];
-        }
-        // fallow_bronze
-        if (genotype.fallow_bronze && genotype.fallow_bronze !== '++') {
-            required.fallow_bronze = [genotype.fallow_bronze];
-        }
-
-        // 伴性遺伝要件
-        if (genotype.ino && genotype.ino !== '++' && genotype.ino !== '+W') {
-            slr.ino = [genotype.ino, genotype.ino.replace(/(.+)\1/, '$1W')]; // ホモ + ヘミ
-        }
-        if (genotype.opaline && genotype.opaline !== '++' && genotype.opaline !== '+W') {
-            slr.op = [genotype.opaline, genotype.opaline.replace(/(.+)\1/, '$1W')];
-        }
-        if (genotype.cinnamon && genotype.cinnamon !== '++' && genotype.cinnamon !== '+W') {
-            slr.cin = [genotype.cinnamon, genotype.cinnamon.replace(/(.+)\1/, '$1W')];
-        }
-
-        // 難易度と世代数を推定
-        const locusCount = Object.keys(required).length + Object.keys(slr).length;
-        let difficulty = 'low';
-        let minGen = 1;
-        if (locusCount >= 4) { difficulty = 'extreme'; minGen = 5; }
-        else if (locusCount >= 3) { difficulty = 'high'; minGen = 4; }
-        else if (locusCount >= 2) { difficulty = 'mid'; minGen = 2; }
-
-        // INO/Pallid系は近親交配制限
-        const hasIno = slr.ino && (slr.ino.includes('inoino') || slr.ino.includes('pldpld'));
-        const inbreedingLimit = hasIno ? 2 : undefined;
-
-        return {
-            required,
-            slr,
-            minGen,
-            difficulty,
-            inbreedingLimit,
-            tier: colorDef.tier || 1
-        };
+        return this.TARGET_REQUIREMENTS[colorKey] || null;
     },
 
     // v7.0: 翻訳対応plan関数
@@ -442,55 +304,24 @@ const BreedingPlanner = {
      * @returns {string} 遺伝子型 (e.g., 'inoino', '+ino', '+W', '++')
      */
     getSLRGenotypeFromZLinked(geno, slrKey, sex) {
-        // slrキー → Z_linkedキー のマッピング
-        const keyMap = {
-            'ino': 'ino',
-            'cin': 'cinnamon',
-            'op': 'opaline'
-        };
-        const zKey = keyMap[slrKey] || slrKey;
+        const zKey = this._slrLocus(slrKey);
+        const wildGeno = GenoData.wildGenotype(zKey, sex);
 
-        // v7形式の Z_linked がある場合
+        // v7形式の Z_linked がある場合: ハプロタイプのアレルから正規の遺伝子型を引く（GENOTYPE_DATA）
         if (geno.Z_linked && geno.Z_linked.Z1) {
             const z1 = geno.Z_linked.Z1 || {};
             const z2 = geno.Z_linked.Z2 || null;
-
-            const a1 = z1[zKey] || '+';
-
-            if (sex === 'female') {
-                // メス: ヘミ接合 (ZW)
-                // 変異があれば発現、なければ +W
-                if (a1 !== '+') {
-                    return a1 + 'W';  // e.g., 'inoW', 'cinW', 'opW'
-                }
-                return '+W';
-            } else {
-                // オス: 二倍体 (ZZ)
-                const a2 = z2 ? (z2[zKey] || '+') : '+';
-
-                // ホモ/ヘテロ/野生型の判定
-                if (a1 !== '+' && a2 !== '+') {
-                    // 両方変異: ホモまたは複合ヘテロ
-                    return a1 + a2;  // e.g., 'inoino', 'cinino'
-                } else if (a1 !== '+') {
-                    // 片方変異: スプリット
-                    return '+' + a1;  // e.g., '+ino', '+cin'
-                } else if (a2 !== '+') {
-                    return '+' + a2;
-                }
-                return '++';
-            }
+            const wildAllele = (GenoData.alleles(zKey, GenoData.wildGenotype(zKey, 'female')) || [])[0];
+            const alleles = sex === 'female'
+                ? [z1[zKey] || wildAllele]
+                : [z1[zKey] || wildAllele, (z2 ? z2[zKey] : null) || wildAllele];
+            return GenoData.fromAlleles(zKey, alleles) || wildGeno;
         }
 
-        // v7形式がない場合、旧形式にフォールバック
-        // 旧形式のキーも試す
+        // 旧形式（座位キーか伴性キーで直接持つ）
         const oldFormatVal = geno[slrKey] || geno[zKey];
-        if (oldFormatVal) {
-            return oldFormatVal;
-        }
-
-        // デフォルト
-        return sex === 'male' ? '++' : '+W';
+        if (oldFormatVal) return GenoData.canonical(zKey, oldFormatVal);
+        return wildGeno;
     },
 
     /**
@@ -500,46 +331,12 @@ const BreedingPlanner = {
      * @param {Array} requiredVals - 必要な遺伝子型の配列 (e.g., ['pldpld', 'pldW'])
      * @returns {boolean} スプリットが目標アレルと互換性があるか
      */
-    isCompatibleSplit(val, requiredVals) {
-        // 野生型は互換性なし
-        if (val === '++' || val === '+W') return false;
-
-        // 必要なアレルを抽出 (pldpld → pld, inoino → ino, inoW → ino)
-        const extractAllele = (v) => {
-            // ホモ接合: 'inoino' → 'ino', 'pldpld' → 'pld', 'cinW' → 'cin'
-            if (v.endsWith('W')) return v.slice(0, -1);  // cinW → cin
-            // 同じアレルの繰り返し: inoino → ino, pldpld → pld
-            const half = v.length / 2;
-            if (v.slice(0, half) === v.slice(half)) return v.slice(0, half);
-            return v;  // そのまま返す
-        };
-
-        // 鳥の持つアレルを抽出 ('+ino' → 'ino', '+pld' → 'pld')
-        const birdAlleles = [];
-        if (val.startsWith('+')) {
-            birdAlleles.push(val.slice(1));  // '+ino' → 'ino'
-        } else if (val.endsWith('W')) {
-            birdAlleles.push(val.slice(0, -1));  // 'inoW' → 'ino'
-        } else {
-            // 'inoino', 'pldpld', 'pldino' など
-            const half = val.length / 2;
-            if (val.slice(0, half) === val.slice(half)) {
-                birdAlleles.push(val.slice(0, half));  // ホモ
-            } else {
-                // 複合ヘテロ: 'pldino' → ['pld', 'ino'] (理論上)
-                // 実際にはこのケースは稀だが念のため
-                birdAlleles.push(val.slice(0, half), val.slice(half));
-            }
-        }
-
-        // 必要なアレルを抽出
-        const requiredAlleles = new Set();
-        for (const rv of requiredVals) {
-            requiredAlleles.add(extractAllele(rv));
-        }
-
-        // 鳥のアレルが必要なアレルのいずれかと一致するかチェック
-        return birdAlleles.some(a => requiredAlleles.has(a));
+    isCompatibleSplit(val, requiredVals, slrKey) {
+        // SSOT: アレルの中身は GENOTYPE_DATA で引く（ino と pld を区別する）
+        const locus = this._slrLocus(slrKey);
+        if (GenoData.isWild(locus, val)) return false;
+        const required = new Set(requiredVals.flatMap(v => GenoData.mutantAlleles(locus, v)));
+        return GenoData.mutantAlleles(locus, val).some(a => required.has(a));
     },
 
     calculateGeneScore(bird, target) {
@@ -548,15 +345,15 @@ const BreedingPlanner = {
 
         // 常染色体遺伝子
         for (const [locus, vals] of Object.entries(target.required)) {
-            if (vals.includes(geno[locus])) score += 100;
-            else if (geno[locus] && geno[locus] !== '++') score += 50;
+            if (vals.includes(GenoData.canonical(locus, geno[locus]))) score += 100;
+            else if (geno[locus] && !GenoData.isWild(locus, geno[locus])) score += 50;
         }
 
         // v7.3.19: 伴性遺伝子 - Z_linked形式対応 + アレル互換性チェック
         for (const [locus, vals] of Object.entries(target.slr)) {
             const v = this.getSLRGenotypeFromZLinked(geno, locus, bird.sex);
             if (vals.includes(v)) score += 100;
-            else if (this.isCompatibleSplit(v, vals)) score += 50;
+            else if (this.isCompatibleSplit(v, vals, locus)) score += 50;
             // v7.3.19: 互換性のないアレル (例: pld目標にino保有) はスコア0
         }
         return score;
@@ -568,10 +365,11 @@ const BreedingPlanner = {
 
         // 常染色体遺伝子
         for (const [locus, vals] of Object.entries(target.required)) {
-            const mv = mGeno[locus] || '++', fv = fGeno[locus] || '++';
+            const mv = GenoData.canonical(locus, mGeno[locus] || GenoData.wildGenotype(locus, 'male'));
+            const fv = GenoData.canonical(locus, fGeno[locus] || GenoData.wildGenotype(locus, 'female'));
             if (vals.includes(mv) && vals.includes(fv)) prob *= 1.0;
             else if (vals.includes(mv) || vals.includes(fv)) prob *= 0.5;
-            else if (mv !== '++' && fv !== '++') prob *= 0.25;
+            else if (!GenoData.isWild(locus, mv) && !GenoData.isWild(locus, fv)) prob *= 0.25;
             else prob *= 0;
         }
 
@@ -589,7 +387,7 @@ const BreedingPlanner = {
                 prob *= 1.0;
             } else if (vals.includes(fv)) {
                 // メスのみ発現
-                if (mv !== '++') {
+                if (!GenoData.isWild(this._slrLocus(locus), mv)) {
                     // オスがスプリット
                     prob *= 0.5;
                 } else {
@@ -599,7 +397,7 @@ const BreedingPlanner = {
             } else if (vals.includes(mv)) {
                 // オスのみ発現（ホモ）
                 prob *= 0.5;  // 娘は発現（ヘミ接合）
-            } else if (mv !== '++') {
+            } else if (!GenoData.isWild(this._slrLocus(locus), mv)) {
                 // オスがスプリット
                 prob *= 0.25;  // 娘の半分が発現
             } else {
@@ -724,8 +522,7 @@ const BreedingPlanner = {
         // (表現型からの推論は限定的)
         let expressedCount = 0;
         neededLoci.forEach(loc => {
-            const val = geno[loc] || '++';
-            if (val !== '++' && val !== '+W' && !val.startsWith('+')) {
+            if (GenoData.isExpressed(loc, geno[loc])) {
                 expressedCount++;
             }
         });
@@ -748,8 +545,8 @@ const BreedingPlanner = {
         const req = target.required || {};
 
         // dark + parblue の両方が必要か
-        const needsDark = req.dark && !req.dark.includes('dd');
-        const needsParblue = req.parblue && !req.parblue.includes('++');
+        const needsDark = req.dark && req.dark.some(g => !GenoData.isWild('dark', g));
+        const needsParblue = req.parblue && req.parblue.some(g => !GenoData.isWild('parblue', g));
 
         if (!needsDark || !needsParblue) {
             return { phase: 'not_applicable', note: this._t('bp_linkage_not_needed', '連鎖考慮不要') };
@@ -918,11 +715,11 @@ const BreedingPlanner = {
 
             birds.forEach(b => {
                 const geno = b.genotype || {};
-                const val = geno[locus] || '++';
+                const val = GenoData.canonical(locus, geno[locus]);
 
                 if (vals.includes(val)) {
                     available.autosomal[locus].homozygous.push(b);
-                } else if (val !== '++' && val !== 'dd' && val !== 'vv') {
+                } else if (!GenoData.isWild(locus, val)) {
                     // ヘテロまたはスプリット
                     available.autosomal[locus].heterozygous.push(b);
                 } else {
@@ -941,7 +738,7 @@ const BreedingPlanner = {
 
                 if (vals.includes(val)) {
                     available.slr[locus].expressed.push(b);
-                } else if (this.isCompatibleSplit(val, vals)) {
+                } else if (this.isCompatibleSplit(val, vals, locus)) {
                     // v7.3.19: スプリットが目標アレルと互換性がある場合のみカウント
                     // (例: pld目標に対してino保有は不可、pld保有のみ可)
                     available.slr[locus].split.push(b);
@@ -1048,9 +845,9 @@ const BreedingPlanner = {
 
             // 常染色体遺伝子
             for (const [locus, vals] of Object.entries(required)) {
-                const val = geno[locus] || '++';
+                const val = GenoData.canonical(locus, geno[locus]);
                 // ホモでもヘテロでも「持っている」とカウント
-                if (vals.includes(val) || (val !== '++' && val !== 'dd' && val !== 'vv')) {
+                if (vals.includes(val) || !GenoData.isWild(locus, val)) {
                     genesPresent++;
                 }
             }
@@ -1058,7 +855,7 @@ const BreedingPlanner = {
             // v7.3.19: 伴性遺伝子 - Z_linked形式対応 + アレル互換性チェック
             for (const [locus, vals] of Object.entries(slr)) {
                 const val = this.getSLRGenotypeFromZLinked(geno, locus, bird.sex);
-                if (vals.includes(val) || this.isCompatibleSplit(val, vals)) {
+                if (vals.includes(val) || this.isCompatibleSplit(val, vals, locus)) {
                     genesPresent++;
                 }
             }
@@ -1337,14 +1134,12 @@ const BreedingPlanner = {
 
         if (goal.strategy === 'hetero_x_hetero') {
             // Dd × Dd を探す
-            const heteroMales = males.filter(b => {
-                const val = (b.genotype || {})[goal.locus] || '++';
-                return val !== '++' && !goal.targetValue.includes(val);
-            });
-            const heteroFemales = females.filter(b => {
-                const val = (b.genotype || {})[goal.locus] || '++';
-                return val !== '++' && !goal.targetValue.includes(val);
-            });
+            const isHetero = (b) => {
+                const val = (b.genotype || {})[goal.locus];
+                return !GenoData.isWild(goal.locus, val) && !goal.targetValue.includes(GenoData.canonical(goal.locus, val));
+            };
+            const heteroMales = males.filter(isHetero);
+            const heteroFemales = females.filter(isHetero);
 
             heteroMales.forEach(m => {
                 heteroFemales.forEach(f => {
@@ -1371,7 +1166,7 @@ const BreedingPlanner = {
             const requiredVals = [goal.targetValue];  // 例: ['pldpld']
             const splitMales = males.filter(b => {
                 const val = this.getSLRGenotypeFromZLinked(b.genotype || {}, goal.locus, 'male');
-                return this.isCompatibleSplit(val, requiredVals);
+                return this.isCompatibleSplit(val, requiredVals, goal.locus);
             });
 
             splitMales.forEach(m => {
@@ -2039,4 +1834,8 @@ function openPlanInFamilyMap() {
             showTab('family');
         }
     }
+}
+
+if (typeof window !== 'undefined') {
+    window.BreedingPlanner = BreedingPlanner;
 }

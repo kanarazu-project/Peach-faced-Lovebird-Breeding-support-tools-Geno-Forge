@@ -564,6 +564,7 @@ function exportBirdsCSV() {
  */
 function downloadImportTemplate(format) {
     // 5羽分のサンプルデータ
+    // ssot-data:begin テンプレート用サンプル個体の記録。表記は scripts/ssot-literal-check が正本と照合する
     const sampleBirds = [
         {
             id: 'sample-001',
@@ -616,13 +617,14 @@ function downloadImportTemplate(format) {
             sex: 'male',
             birthDate: '2024-05-01',
             lineage: 'Sample Line A',
-            observed: { baseColor: 'dark_green', eyeColor: 'black', darkness: 'sf' },
+            observed: { baseColor: 'darkgreen', eyeColor: 'black', darkness: 'sf' },
             genotype: { parblue: '++', ino: '++', dark: 'Dd', opaline: '++', cinnamon: '++', pied_rec: '++' },
             sire: { id: 'sample-001', name: 'サンプル太郎' },
             dam: { id: 'sample-002', name: 'サンプル花子' },
             notes: 'Offspring of sample-001 and sample-002'
         }
     ];
+    // ssot-data:end
 
     if (format === 'json') {
         // JSON形式
