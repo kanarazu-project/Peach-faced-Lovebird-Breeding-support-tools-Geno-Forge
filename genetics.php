@@ -313,6 +313,15 @@ final class AgapornisLoci
     /** 色名の基本色を決める INO の発現（ino アレルだけの遺伝子型） */
     private const COLOR_NAME_INO_ALLELE = 'ino';
 
+    /**
+     * 見た目のそろえ方（色の判定・色名・確信度が共通に使う）。座位 → [優位なアレル => 劣位のアレル]。
+     * ino 座位では pld が ino より優位で、pldino はパリッドに見える。優性（type AD）はヘテロとホモが同じ見た目（別に扱う）。
+     */
+    private const ALLELE_DOMINANCE = ['ino' => ['pld' => 'ino']];
+
+    /** 色の判定で、INO の発現に隠される座位（INO の色は濃さで名前が変わらない） */
+    private const COLOR_LOCI_HIDDEN_BY_INO = ['dark'];
+
     /** INO 型の表示の優先順（健康評価の文言で、両親のうちより白い系統を示す） */
     private const INO_TYPE_PRIORITY = ['pure_white', 'creamino', 'creamino_seagreen', 'lutino'];
 
@@ -321,12 +330,23 @@ final class AgapornisLoci
      */
     private static function colorSignature(array $genotype, array $loci): string
     {
+        $formOf = fn(string $locus) => $loci[$locus]['genotypes'][(string)($genotype[$locus] ?? '')]['phenoForm'] ?? null;
+        // INO が発現していると（見た目が ino だけのとき）、COLOR_LOCI_HIDDEN_BY_INO の座位は色を変えない
+        $inoForm = $formOf('ino');
+        $inoExpressed = $inoForm !== null && array_unique(self::splitGenotype('ino', $inoForm) ?? []) === [self::COLOR_NAME_INO_ALLELE];
         $parts = [];
         foreach (array_keys(self::LOCI) as $locus) {
-            $form = $loci[$locus]['genotypes'][$genotype[$locus] ?? '']['phenoForm'] ?? null;
+            if ($inoExpressed && in_array($locus, self::COLOR_LOCI_HIDDEN_BY_INO, true)) continue;
+            $form = $formOf($locus);
             if ($form !== null) $parts[] = $locus . '=' . $form;
         }
         return implode(';', $parts);
+    }
+
+    /** 遺伝子型の色の署名（座位ごとの見た目）。genotypeData の colorKey.bySignature を引く鍵 */
+    public static function genotypeSignature(array $genotype): string
+    {
+        return self::colorSignature($genotype, self::genotypeData()['loci']);
     }
 
     /**
@@ -393,9 +413,20 @@ final class AgapornisLoci
                 $hemi = (count($calleles) === 2 && $calleles[0] === $calleles[1] && $calleles[0] !== $wild)
                     ? ($byAlleles[$sortKey([$calleles[0]])] ?? null) : null;
                 $expressed = self::isExpressedAlleles($key, $calleles);
-                // 表現型の形: 表現している遺伝子型を、色の定義の書き方（オス形）にそろえたもの。伴性メスの aW は aa
-                $phenoForm = !$expressed ? null
-                    : (count($calleles) === 1 ? ($byAlleles[$sortKey([$calleles[0], $calleles[0]])] ?? $canonical) : $canonical);
+                // 表現型の形（見た目）: 表現している遺伝子型を、同じ見た目の代表（色の定義の書き方）にそろえたもの。
+                // 伴性メスの aW は aa、優位なアレルがあれば劣位のアレルを置き換え（pldino → pldpld）、優性はヘテロの形（PiPi → Pi+）
+                $phenoForm = null;
+                if ($expressed) {
+                    $look = count($calleles) === 1 ? [$calleles[0], $calleles[0]] : $calleles;
+                    foreach (self::ALLELE_DOMINANCE[$key] ?? [] as $dom => $rec) {
+                        if (in_array($dom, $look, true)) $look = array_map(fn($a) => $a === $rec ? $dom : $a, $look);
+                    }
+                    if ((self::LOCI[$key]['type'] ?? '') === 'AD') {
+                        $mut = current(array_filter($look, fn($a) => $a !== $wild));
+                        $look = [$wild, $mut];
+                    }
+                    $phenoForm = $byAlleles[$sortKey($look)] ?? $canonical;
+                }
                 return [
                     'canonical' => $canonical,
                     'alleles' => $calleles,
@@ -493,11 +524,13 @@ final class AgapornisLoci
             if ($pb !== false) $inoTypes[] = [$pb, $color];
         }
         // 定義に無い組み合わせの色名の規則（部品は COLOR_NAME_PARTS、基本色の名前は COLOR_DEFINITIONS から）
+        // 見た目（phenoForm、表現していなければ遺伝子型そのもの）のアレルで判定する（pldino はパリッド、PiPi は Pi+ と同じ）
         $withAllele = function (string $l, string $allele, string $mode) use ($loci): array {
-            return array_values(array_keys(array_filter($loci[$l]['genotypes'], function ($i, $g) use ($allele, $mode) {
+            return array_values(array_keys(array_filter($loci[$l]['genotypes'], function ($i, $g) use ($allele, $mode, $l, $loci) {
                 if ($i['canonical'] !== $g) return false;
-                $hits = count(array_filter($i['alleles'], fn($a) => $a === $allele));
-                return $mode === 'any' ? $hits > 0 : $hits === count($i['alleles']);
+                $look = $i['phenoForm'] !== null ? ($loci[$l]['genotypes'][$i['phenoForm']]['alleles'] ?? $i['alleles']) : $i['alleles'];
+                $hits = count(array_filter($look, fn($a) => $a === $allele));
+                return $mode === 'any' ? $hits > 0 : $hits === count($look);
             }, ARRAY_FILTER_USE_BOTH)));
         };
         $nameOf = fn(string $color) => ['ja' => self::COLOR_DEFINITIONS[$color]['ja'], 'en' => self::COLOR_DEFINITIONS[$color]['en']];
@@ -549,6 +582,8 @@ final class AgapornisLoci
             'inoTypes' => $inoTypes,
             'colorKey' => [
                 'bySignature' => $colorBySignature,
+                // 署名の作り方: INO が発現していると（ino の見た目が inoGenotypes）、hiddenByIno の座位を署名に入れない
+                'hiddenByIno' => self::COLOR_LOCI_HIDDEN_BY_INO,
             ],
             'colorName' => $colorName,
             // 連鎖する組 → 座位（LINKAGE_GROUPS の順）と、登録画面の欄のキー → 座位（UI_GENOTYPE_LOCI）
@@ -1328,90 +1363,16 @@ final class AgapornisLoci
      */
     public static function findColorKey(array $genotype): ?string
     {
-        foreach (self::COLOR_DEFINITIONS as $key => $def) {
-            if (self::genotypeMatches($def['genotype'], $genotype)) {
-                return $key;
-            }
+        // 座位ごとの見た目（phenoForm）の署名で、色の定義を引く。表記の違い（ino+ / +ino、+Ed / Ed+、aq+ / +aq）と
+        // 表現しないスプリットは見た目に影響しないので、どの書き方でも同じ色になる
+        $canon = [];
+        foreach ($genotype as $locus => $value) {
+            if (isset(self::LOCI[$locus]) && is_string($value)) $canon[$locus] = self::canonicalGenotype($locus, $value);
         }
-        return null;
+        $key = self::genotypeData()['colorKey']['bySignature'][self::genotypeSignature($canon)] ?? null;
+        return $key === null ? null : (string)$key;
     }
 
-    private static function genotypeMatches(array $defGeno, array $targetGeno): bool
-    {
-        // INO系かどうか判定
-        $isIno = (isset($targetGeno['ino']) && in_array($targetGeno['ino'], ['inoino', 'inoW'])) ||
-                 (isset($defGeno['ino']) && in_array($defGeno['ino'], ['inoino', 'inoW']));
-
-        // 性連鎖座位のヘミ接合対応マッピング
-        $slEquivalents = [
-            'opop' => 'opW',
-            'cincin' => 'cinW',
-            'inoino' => 'inoW',
-            'pldpld' => 'pldW',
-        ];
-
-        // parblue座位の等価マッピング（ソート順の違いを吸収）
-        $parblueEquivalents = [
-            'aqtq' => 'tqaq',
-            '+aq' => 'aq+',
-            '+tq' => 'tq+',
-        ];
-
-        // edged座位の等価マッピング（Ed/ed表記の違いを吸収）
-        $edgedEquivalents = [
-            'eded' => 'EdEd',
-            'EdEd' => 'eded',
-            '+ed' => 'Ed+',
-            'Ed+' => '+ed',
-            'ed+' => '+Ed',
-            '+Ed' => 'ed+',
-        ];
-
-        foreach ($defGeno as $locus => $value) {
-            if (!isset($targetGeno[$locus])) {
-                return false;
-            }
-            $targetVal = $targetGeno[$locus];
-            // 完全一致 or ヘミ接合等価 or parblue等価
-            if ($targetVal !== $value) {
-                $equiv = $slEquivalents[$value] ?? null;
-                if ($equiv !== null && $targetVal === $equiv) {
-                    continue;
-                }
-                // parblue座位のソート順違いを吸収
-                if ($locus === 'parblue') {
-                    $parblueEquiv = $parblueEquivalents[$targetVal] ?? null;
-                    if ($parblueEquiv === $value) {
-                        continue;
-                    }
-                }
-                // edged座位のEd/ed表記違いを吸収
-                if ($locus === 'edged' && ($edgedEquivalents[$value] ?? null) === $targetVal) {
-                    continue;
-                }
-                return false;
-            }
-        }
-        // 野生型（表現型に影響しない遺伝子型）
-        // ヘテロ接合（+x）は表現型に影響しないのでワイルドタイプ扱い
-        $wildTypes = ['++', '+W', 'dd', 'vv'];
-        foreach ($targetGeno as $locus => $value) {
-            if (!isset($defGeno[$locus])) {
-                // INO系なら dark は無視
-                if ($isIno && $locus === 'dark') {
-                    continue;
-                }
-                // ヘテロ接合（+で始まる）は劣性なので表現型に影響しない
-                if (preg_match('/^\+[a-z]+$/', $value)) {
-                    continue;
-                }
-                if (!in_array($value, $wildTypes)) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
     /**
      * 遺伝子型から色情報を解決（Tier1/2 → Tier3フォールバック）
      * @param array $genotype 遺伝子型配列
@@ -5664,16 +5625,12 @@ public function estimate(string $sex, string $baseColor, string $eyeColor, strin
         $type = $config['type'] ?? 'AR';
 
         if (AgapornisLoci::isExpressedAlleles($locusKey, $alleles)) {
-            if ($type === 'AD') {
-                // 優性はヘテロとホモが同じ見た目（例: Pi+ / PiPi）
-                $wild = AgapornisLoci::wildAllele($locusKey) ?? '+';
-                $mutant = current(array_filter($alleles, fn($a) => $a !== $wild));
-                return [50, false, [$mutant . $wild, $mutant . $mutant]];
-            }
-            if ($locusKey === 'ino' && !$isFemale && $genoValue === 'pldpld') {
-                return [50, false, ['pldpld', 'pldino']];   // パリッドは ino より優位で、pldino もパリッドに見える
-            }
-            return [100, true, []];
+            // 見た目（phenoForm）が同じ遺伝子型が複数あれば 50（優性の Pi+ / PiPi、パリッドのオスの pldpld / pldino）
+            $table = AgapornisLoci::genotypeData()['loci'][$locusKey]['genotypes'];
+            $look = $table[AgapornisLoci::canonicalGenotype($locusKey, $genoValue)]['phenoForm'] ?? null;
+            $same = array_values(array_filter(AgapornisLoci::canonicalGenotypes($locusKey)[$isFemale ? 'female' : 'male'],
+                fn($g) => ($table[$g]['phenoForm'] ?? null) === $look));
+            return count($same) > 1 ? [50, false, $same] : [100, true, []];
         }
 
         // INO は他の座位の見た目を覆い隠す（parblue は色名で、dark は入力で決まるので除外）

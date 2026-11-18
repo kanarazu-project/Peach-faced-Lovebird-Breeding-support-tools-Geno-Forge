@@ -2204,6 +2204,28 @@ if ($runTests) {
         return [!$failed, $failed ? 'NG: ' . implode(' / ', $failed) : count($known) . ' known values + all pairs OK'];
     });
 
+    // Test 22-17: 色の判定は見た目で行う（表記違い・スプリット・見た目が同じ遺伝子型・INO に隠されたダーク）
+    $reg('Colour key by phenotype: splits, notation, Pi+/PiPi, pldino, INO hides dark', function () {
+        $k = fn(array $g) => AgapornisLoci::findColorKey($g);
+        $offspringKeys = function (array $in) {
+            $keys = [];
+            foreach ((new GeneticsCalculator())->calculateOffspring($in)['phenotype'] as $r) $keys[] = $r['colorKey'];
+            return array_values(array_unique($keys));
+        };
+        $checks = [
+            'parblue split +aq -> green' => $k(['parblue' => '+aq', 'dark' => 'dd']) === 'green',
+            'edged split +Ed -> green' => $k(['parblue' => '++', 'dark' => 'dd', 'edged' => '+Ed']) === 'green',
+            'ino split ino+ -> green' => $k(['parblue' => '++', 'dark' => 'dd', 'ino' => 'ino+']) === 'green',
+            'PiPi -> pied_dom_green' => $k(['parblue' => '++', 'dark' => 'dd', 'pied_dom' => 'PiPi']) === 'pied_dom_green',
+            'pldino -> pallid_green' => $k(['parblue' => '++', 'dark' => 'dd', 'ino' => 'pldino']) === 'pallid_green',
+            'lutino with Dd -> lutino' => $k(['parblue' => '++', 'dark' => 'Dd', 'ino' => 'inoW']) === 'lutino',
+            'offspring +aq x ++ all green' => $offspringKeys(['f_parblue' => '+aq', 'm_parblue' => '++']) === ['green'],
+            'offspring Ed+ x Ed+: green and edged_green' => (function () use ($offspringKeys) { $x = $offspringKeys(['f_ed' => 'Ed+', 'm_ed' => 'Ed+']); sort($x); return $x === ['edged_green', 'green']; })(),
+        ];
+        $failed = array_keys(array_filter($checks, fn($v) => !$v));
+        return [!$failed, $failed ? 'NG: ' . implode(' / ', $failed) : count($checks) . ' checks OK'];
+    });
+
     // Test 22-7: 確信度は表現型から判別できる度合いを反映する
     $reg('GenotypeEstimator: confidence reflects what phenotype can determine', function () use ($locusOf) {
         $est = new GenotypeEstimator();

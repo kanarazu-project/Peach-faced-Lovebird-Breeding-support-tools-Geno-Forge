@@ -304,9 +304,21 @@ When the phase is not recorded, every phase arrangement of the heterozygous loci
 
 **Stored records (data version 7.3.14).** On the first load after the update, saved user records are migrated (`BirdDB.migratePhaseAndKeys`). Values saved under form keys are moved to locus keys. Records converted from the old per-locus format get their phase flags recomputed: two or more heterozygous loci in a group means the phase is unknown. The old form value `cis_…` / `trans_…` is applied to the Z haplotypes of males with exactly two heterozygous Z loci. With three, cis/trans alone does not fix the arrangement, so the phase stays unknown. Demo data is regenerated.
 
+### Colour of a genotype (`AgapornisLoci::findColorKey()`)
+
+A genotype is matched to a colour by how it looks, not by its exact notation. Each locus is reduced to its phenotype form (`phenoForm` in `GENOTYPE_DATA`):
+- a locus that is not expressed (wild type or split) adds nothing;
+- a sex-linked hen's `aW` reads as `aa`;
+- in the ino locus pld is dominant over ino, so `pldino` reads as `pldpld` (`ALLELE_DOMINANCE`);
+- a dominant (AD) locus reads as its heterozygote, so `PiPi` reads as `Pi+`.
+
+The phenotype forms are joined into a signature. When INO is expressed, the dark factor is left out (`COLOR_LOCI_HIDDEN_BY_INO`), because INO colours are not named by dark. The colour is the definition with the same signature. `BirdDB.colorKeyOf()` builds the same signature, and `scripts/js-check` compares the two on 3,310 genotypes.
+
+Before this, the match compared notation strings, so offspring carrying `+aq`, `+Ed` or `ino+` got the colour key `unknown` in the offspring calculator, and `PiPi` / `pldino` had no colour. On the old code, 1,030 of 20,310 sampled genotypes changed from no colour to a colour; no defined colour changed. Phenotype confidence uses the same forms: the genotypes that look the same give the 50% alternatives (`Pi+`/`PiPi`, male `pldpld`/`pldino`); its output is unchanged.
+
 ### Names of colour combinations not in `COLOR_DEFINITIONS`
 
-`AgapornisLoci::generateColorName()` builds the name from the parts table `COLOR_NAME_PARTS` (opaline, cinnamon, pallid, pale fallow, bronze fallow, dilute, edged, violet, dominant pied, recessive pied, orangeface/yellowface, pale headed), then the base colour, whose name comes from `COLOR_DEFINITIONS`. The same rules go to JS as `GENOTYPE_DATA.colorName`, and `BirdDB.composeColorName()` uses them, so both sides give the same name. `scripts/js-check` compares them on 3,002 genotypes in Japanese and English. Genotypes are put in canonical order first, so the calculator's `+Pi` is named Dominant Pied like `Pi+`.
+`AgapornisLoci::generateColorName()` builds the name from the parts table `COLOR_NAME_PARTS` (opaline, cinnamon, pallid, pale fallow, bronze fallow, dilute, edged, violet, dominant pied, recessive pied, orangeface/yellowface, pale headed), then the base colour, whose name comes from `COLOR_DEFINITIONS`. The same rules go to JS as `GENOTYPE_DATA.colorName`, and `BirdDB.composeColorName()` uses them, so both sides give the same name. `scripts/js-check` compares them on 3,002 genotypes in Japanese and English. Genotypes are put in canonical order first, so the calculator's `+Pi` is named Dominant Pied like `Pi+`. Parts match the phenotype form, so `pldino` is named Pallid.
 
 ### Phenotype → genotype confidence (`GenotypeEstimator`)
 
@@ -352,14 +364,14 @@ Comprehensive test suite covering all genetic calculations and integrations.
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 129 (PHP 99 + JS 30) |
+| Total Tests | 130 (PHP 100 + JS 30) |
 | Pass Rate | 100% |
 | Test File | `debug_test.php` |
 
 **Test Categories:**
 - PHP Unit tests (50): Core classes, calculations, color definitions
 - PHP Integration tests (33): UI/API compatibility, SSOT integrity, i18n coverage
-- PHP Regression tests (16): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist, pedigree data built from SSOT, genotype data (canonical forms, colour signatures, planner targets, INO types), planner cross table, linked cross table (cis/trans)
+- PHP Regression tests (17): cin-op recombination rate, family inference (sex-linked dam, Mendelian weights, non-expression, dark factor), minGenerations, phenotype confidence and alternatives, darkness input (sf/df, INO), Edged inheritance mode, in-app README i18n and `lang` whitelist, pedigree data built from SSOT, genotype data (canonical forms, colour signatures, planner targets, INO types), planner cross table, linked cross table (cis/trans), colour key by phenotype
 - JS Tests (30): BreedingValidator, HealthGuardian, BreedingPlanner
 
 Run tests via browser: `debug_test.php?run_tests=1` (PHP and JS tests), or on the command line: `bash scripts/agent-check`. It runs the Skill routing check, the rule table, the PHP tests, the pedigree PHP/JS match check, the SSOT literal check, the JS/PHP match check and the browser test. The browser test needs Playwright with Chromium; without it, it prints `SKIP` locally. CI installs them and sets `BROWSER_TEST_REQUIRED=1`, so a missing browser fails there.

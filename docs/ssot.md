@@ -42,7 +42,7 @@ genetics.php（正本）
 | targets[色] | 繁殖計画の目標（required / slr / tier / minGen は PathFinder / difficulty / inbreedingLimit） | planner.js |
 | plannerSlrKeys | 繁殖計画の伴性キー（ino / cin / op）→ 座位 | planner.js |
 | inoTypes | パーブルー → INO 色（表示の優先順） | guardian.js |
-| colorKey | 定義済みの色の署名 → 色キー（bySignature） | birds.js |
+| colorKey | 定義済みの色の署名 → 色キー（bySignature）と、INO の発現時に署名から除く座位（hiddenByIno）。署名は座位ごとの見た目（phenoForm。ALLELE_DOMINANCE と優性のそろえ方込み）。PHP の findColorKey も同じ署名で引く | birds.js（colorKeyOf）, genetics.php |
 | colorName | 定義に無い組み合わせの色名の規則（部品は COLOR_NAME_PARTS、基本色の名前は COLOR_DEFINITIONS）。PHP の generateColorName も同じ表を使う | birds.js（composeColorName）, genetics.php |
 | darknessByDark | ダーク因子の遺伝子型 → 濃さ欄の値 | birds.js |
 
@@ -72,7 +72,9 @@ JS にも他の PHP にも書かない。PHP で計算した結果を注入し�
 
 ## 4. 残っている課題
 
-現時点で、既知の未解決の課題は無い。
+| 箇所 | 中身 | 見立て |
+|---|---|---|
+| レースウィング（シナモン＋INO） | COLOR_DEFINITIONS に無く、色名の部品は INO の発現時にシナモンを付けないので「ルチノー」と名付けられる。交配計算ではルチノーと同じ行に合算される。推定のコード（genetics.php の lacewing の分岐）は区別している | 色の定義に足すか、部品の表の noIno をシナモンだけ外すか。ALBS の命名の確認が要る |
 
 解決済み（2026-11-18）: planner.js のメンデル比の係数 → CROSS_TABLE。連鎖する組 → LINKED_CROSS_TABLE（相が不明なら並べ方の平均と幅）。
 登録画面の相 → 連鎖する組でヘテロが2座位以上のとき並べ方を選ぶ欄（app.js refreshPhaseFields）、保存は BirdDB.applyPhase でハプロタイプと相の印へ。

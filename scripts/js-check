@@ -7,6 +7,7 @@
 #   7. planner.js  連鎖する組: 親のハプロタイプ（cis / trans）からの確率が PHP の calculateOffspring と一致し、相が不明なら cis と trans の平均になる
 #   8. birds.js  登録画面の相（applyPhase）と記録の移行（migrateBird）: 選んだ相・旧い cis/trans の指定がハプロタイプに入り、
 #                 繁殖計画の確率が PHP と一致する。不明は未確定のまま。欄のキー（vio など）は座位キーへ移る
+#   9. birds.js  colorKeyOf: 遺伝子型（スプリット・表記違い・見た目が同じ遺伝子型を含む）の色キーが PHP の findColorKey と一致する
 #   6. birds.js  composeColorName: 定義に無い組み合わせの色名が PHP の generateColorName と一致する（日本語・英語）
 #   5. planner.js  calculateTargetProbability が、色の定義どおりの親の交配で PHP の calculateOffspring と同じ確率を返す
 root="$(cd "$(dirname "$0")/.." && pwd)"; cd "$root" || exit 1
@@ -43,6 +44,14 @@ php -r 'require "genetics.php"; echo json_encode(["COLOR_MASTER" => AgapornisLoc
       foreach (array_keys(AgapornisLoci::LOCI) as $l) { $c = AgapornisLoci::canonicalGenotypes($l)[$sex]; if (mt_rand(0, 2)) $g[$l] = $c[mt_rand(0, count($c) - 1)]; }
       $cases[] = $g; }
     return array_map(fn($g) => [$g, AgapornisLoci::generateColorName($g)], $cases);
+  })(),
+  "KEY_CASES" => (function () {
+    mt_srand(13); $cases = [];
+    foreach (AgapornisLoci::COLOR_DEFINITIONS as $d) $cases[] = $d["genotype"];
+    for ($k = 0; $k < 3000; $k++) { $sex = $k % 2 ? "male" : "female"; $g = [];
+      foreach (array_keys(AgapornisLoci::LOCI) as $l) { $c = AgapornisLoci::canonicalGenotypes($l)[$sex]; $g[$l] = mt_rand(0, 3) ? AgapornisLoci::wildGenotype($l, $sex) : $c[mt_rand(0, count($c) - 1)]; }
+      $cases[] = $g; }
+    return array_map(fn($g) => [$g, AgapornisLoci::findColorKey($g)], $cases);
   })()]);' > "$tmp" \
   || { echo "NG   js-check: PHP 側の出力に失敗"; exit 1; }
 exec node - "$tmp" "$root" <<'JS'
@@ -118,6 +127,10 @@ else {
   const vC = G.colorGenotype('violet_' + 'aqua', 'male') || {};
   const keyed = B.migrateBird({ sex: 'male', observed: { baseColor: 'green' }, pedigree: {}, genotype: { Z_linked: { Z1: {}, Z2: {} }, violet: G.wildGenotype('violet'), vio: vC.violet || G.carrier('violet', 'VV') } });
   check(keyed.genotype.vio === undefined && !G.isWild('violet', keyed.genotype.violet), `migrateBird: form key vio moved to violet (${JSON.stringify(keyed.genotype.violet)})`);
+}
+for (const [geno, expected] of consts.KEY_CASES) {
+  const got = ctx.$B.colorKeyOf(geno);
+  check(got === expected, `birds.colorKeyOf ${JSON.stringify(geno)}: ${got} (PHP ${expected})`);
 }
 for (const [geno, expected] of consts.NAME_CASES) for (const lang of ['ja', 'en']) {
   const got = ctx.$B.composeColorName(geno, lang);

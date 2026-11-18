@@ -1969,13 +1969,28 @@ const BirdDB = {
         // 色キーを組み立てる（SSOT: 規則は GENOTYPE_DATA.colorKey。genetics.php が色の定義から導く）
         const rules = (GenoData.data() || {}).colorKey;
         if (!rules) return this.getColorLabel('');
-        // 1. 定義済みの色: 署名（表現している座位=表現型の形、LOCI の順）で正本の色キーを引く
-        const signature = Object.keys(GENOTYPE_DATA.loci)
-            .map(locus => { const i = GenoData.info(locus, geno[locus]); return i && i.phenoForm ? `${locus}=${i.phenoForm}` : null; })
-            .filter(Boolean).join(';');
-        if (rules.bySignature[signature]) return this.getColorLabel(rules.bySignature[signature]);
+        // 1. 定義済みの色: 署名（座位ごとの見た目、LOCI の順）で正本の色キーを引く
+        const key = this.colorKeyOf(geno);
+        if (key) return this.getColorLabel(key);
         // 2. 定義に無い組み合わせ: PHP の generateColorName と同じ表（GENOTYPE_DATA.colorName）で名前を作る
         return this.composeColorName(geno, (typeof LANG !== 'undefined' && LANG === 'ja') ? 'ja' : 'en');
+    },
+
+    /**
+     * 遺伝子型の色キー（genetics.php の AgapornisLoci::findColorKey と同じ署名で引く）。定義に無ければ null。
+     * 署名は表現している座位の「座位=見た目（phenoForm）」を LOCI の順に ; でつなぐ。INO の発現時は hiddenByIno の座位を除く。
+     */
+    colorKeyOf(geno) {
+        const d = GenoData.data() || {};
+        const rules = d.colorKey, names = d.colorName;
+        if (!rules || !names) return null;
+        const form = locus => { const i = GenoData.info(locus, (geno || {})[locus]); return i ? i.phenoForm : null; };
+        const inoExpressed = names.inoGenotypes.includes(form('ino'));
+        const signature = Object.keys(d.loci)
+            .filter(locus => !(inoExpressed && rules.hiddenByIno.includes(locus)))
+            .map(locus => (form(locus) ? `${locus}=${form(locus)}` : null))
+            .filter(Boolean).join(';');
+        return rules.bySignature[signature] || null;
     },
 
     /**
