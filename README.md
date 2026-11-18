@@ -122,23 +122,23 @@ The mathematical logic of `genetics.php` (genetic calculation core engine) has b
 
 | File | Lines | Purpose |
 |------|------:|---------|
-| genetics.php | 5,676 | Genetics calculation engine (SSOT) |
+| genetics.php | 5,712 | Genetics calculation engine (SSOT) |
 | style.css | 3,091 | All styles |
-| debug_test.php | 2,911 | Debug test suite |
-| index.php | 2,327 | Main UI + JS constant injection |
-| birds.js | 2,224 | Bird DB + 72 demo specimens |
+| debug_test.php | 2,970 | Debug test suite |
+| index.php | 2,323 | Main UI + JS constant injection |
+| birds.js | 2,379 | Bird DB + 72 demo specimens |
 | lang_pathfinder.php | 2,192 | PathFinder i18n (11 languages) |
-| planner.js | 1,827 | Breeding planner + linkage evaluation |
-| readme_lang.php | 1,828 | README i18n (11 languages) |
+| planner.js | 1,799 | Breeding planner + linkage evaluation |
+| readme_lang.php | 1,879 | README i18n (11 languages) |
 | family.js | 1,512 | Family tree UI + Auto Populate |
 | lang_guardian.php | 1,165 | Guardian i18n (11 languages) |
-| app.js | 910 | Main application logic |
+| app.js | 976 | Main application logic |
 | pedigree.js | 562 | Pedigree chart rendering |
 | guardian.js | 507 | Health assessment engine |
-| readme.php | 374 | README page |
+| readme.php | 380 | README page |
 | infer.php | 214 | Genotype inference logic |
 | lang.php | 182 | Base i18n (11 languages) |
-| genodata.js | 118 | Genetic fact lookups (reads GENOTYPE_DATA and CROSS_TABLE injected from genetics.php) |
+| genodata.js | 186 | Genetic fact lookups (reads GENOTYPE_DATA, CROSS_TABLE and LINKED_CROSS_TABLE injected from genetics.php) |
 
 ### Key Classes
 

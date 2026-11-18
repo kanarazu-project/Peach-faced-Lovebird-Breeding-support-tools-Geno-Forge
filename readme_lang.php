@@ -205,6 +205,10 @@ const README_LANG = [
         'logic_edged_1' => '常染色体劣性です。<code>EdEd</code> だけが表現し、<code>Ed+</code> はスプリットです。',
         'logic_edged_2' => 'ALBS 名は Edged Dilute、国際名は marbled（記号 mb）です。“Edged Dilute” はオランダ語 pastelgezoomd（edged pastel）の誤訳から来た名前で、エッジドとダイリュートの組合せではありません。',
         'logic_edged_3' => 'フィッシャーとボタンの dominant edged（ALBS 名 Spangled）は、優性の別の変異です。',
+        'logic_color_h' => '色の判定：見た目で当てる',
+        'logic_color' => '遺伝子型は座位ごとの見た目で色の定義に当てます。スプリット（+aq・+Ed など）は色を変えず、伴性メスの aW は aa と同じ、pldino はパリッド、PiPi は Pi+ と同じ見た目です。INO の色ではダークを問いません。',
+        'logic_plan_h' => '繁殖計画の確率：連鎖と相を含めて計算',
+        'logic_plan' => '子が目標と同じ見た目になる確率を、PHP の交配計算から作った表で求めます。連鎖する座位（cin–ino–op、dark–parblue）は親の相（cis/trans）と組換え率を使います。相が不明なら並べ方の平均と幅を表示します。例：ルチノー × ルチノー → グリーン 0%。',
     ],
 
     'en' => [
@@ -391,6 +395,10 @@ const README_LANG = [
         'logic_edged_1' => 'Autosomal recessive. Only <code>EdEd</code> is visual; <code>Ed+</code> is a split.',
         'logic_edged_2' => 'ALBS name: Edged Dilute. International name: marbled (symbol mb). “Edged Dilute” comes from a mistranslation of the Dutch pastelgezoomd (edged pastel); it is not a combination of edged and dilute.',
         'logic_edged_3' => 'The dominant edged of Fischer’s and Masked lovebirds (ALBS: Spangled) is a different, dominant mutation.',
+        'logic_color_h' => 'Colour identification: by appearance',
+        'logic_color' => 'A genotype is matched to a colour by how each locus looks. Splits (+aq, +Ed, …) do not change the colour; a hen\'s aW looks like aa; pldino looks pallid; PiPi looks like Pi+. INO colours ignore dark.',
+        'logic_plan_h' => 'Planner probability: linkage and phase included',
+        'logic_plan' => 'The planner gives the chance that a chick looks exactly like the target, using tables built from the PHP offspring calculation. Linked loci (cin–ino–op, dark–parblue) use the parents\' phase (cis/trans) and the recombination rates. If the phase is unknown, the mean and the range are shown. Example: lutino × lutino → green 0%.',
     ],
 
     'de' => [
@@ -577,6 +585,10 @@ const README_LANG = [
         'logic_edged_1' => 'Autosomal rezessiv. Nur <code>EdEd</code> ist sichtbar; <code>Ed+</code> ist spalterbig.',
         'logic_edged_2' => 'ALBS-Name: Edged Dilute. Internationaler Name: marbled (Symbol mb). „Edged Dilute“ stammt aus einer Fehlübersetzung des niederländischen pastelgezoomd (edged pastel) und ist keine Kombination aus Edged und Dilute.',
         'logic_edged_3' => 'Das dominant edged bei Fischers und Schwarzköpfchen (ALBS: Spangled) ist eine andere, dominante Mutation.',
+        'logic_color_h' => 'Farbbestimmung: nach dem Aussehen',
+        'logic_color' => 'Ein Genotyp wird über das Aussehen jedes Locus einer Farbe zugeordnet. Spalterbigkeit (+aq, +Ed …) ändert die Farbe nicht; aW einer Henne sieht aus wie aa; pldino sieht pallid aus; PiPi sieht aus wie Pi+. Bei INO-Farben zählt Dunkel nicht.',
+        'logic_plan_h' => 'Planer-Wahrscheinlichkeit: mit Kopplung und Phase',
+        'logic_plan' => 'Der Planer berechnet die Wahrscheinlichkeit, dass ein Küken genau wie das Ziel aussieht, aus Tabellen der PHP-Nachzuchtberechnung. Gekoppelte Loci (cin–ino–op, dark–parblue) nutzen die Phase der Eltern (cis/trans) und die Rekombinationsraten. Ist die Phase unbekannt, werden Mittelwert und Spanne angezeigt. Beispiel: Lutino × Lutino → Grün 0 %.',
     ],
 
     'fr' => [
@@ -763,6 +775,10 @@ const README_LANG = [
         'logic_edged_1' => 'Autosomique récessif. Seul <code>EdEd</code> est visible ; <code>Ed+</code> est porteur.',
         'logic_edged_2' => 'Nom ALBS : Edged Dilute. Nom international : marbled (symbole mb). « Edged Dilute » vient d’une mauvaise traduction du néerlandais pastelgezoomd (edged pastel) ; ce n’est pas une combinaison d’edged et de dilué.',
         'logic_edged_3' => 'Le dominant edged des inséparables de Fischer et masqués (ALBS : Spangled) est une autre mutation, dominante.',
+        'logic_color_h' => 'Identification de la couleur : par l\'apparence',
+        'logic_color' => 'Un génotype est rattaché à une couleur selon l\'apparence de chaque locus. Les porteurs (+aq, +Ed…) ne changent pas la couleur ; le aW d\'une femelle ressemble à aa ; pldino paraît pallid ; PiPi ressemble à Pi+. Les couleurs INO ignorent le facteur sombre.',
+        'logic_plan_h' => 'Probabilité du planificateur : liaison et phase incluses',
+        'logic_plan' => 'Le planificateur donne la probabilité qu\'un jeune ait exactement l\'apparence de la cible, à partir de tables issues du calcul PHP des descendants. Les loci liés (cin–ino–op, dark–parblue) utilisent la phase des parents (cis/trans) et les taux de recombinaison. Si la phase est inconnue, la moyenne et l\'intervalle sont affichés. Exemple : lutino × lutino → vert 0 %.',
     ],
 
     'it' => [
@@ -949,6 +965,10 @@ const README_LANG = [
         'logic_edged_1' => 'Autosomico recessivo. Solo <code>EdEd</code> è visibile; <code>Ed+</code> è portatore.',
         'logic_edged_2' => 'Nome ALBS: Edged Dilute. Nome internazionale: marbled (simbolo mb). “Edged Dilute” deriva da una traduzione errata dell’olandese pastelgezoomd (edged pastel); non è una combinazione di edged e diluito.',
         'logic_edged_3' => 'Il dominant edged di fischeri e personata (ALBS: Spangled) è un’altra mutazione, dominante.',
+        'logic_color_h' => 'Identificazione del colore: dall\'aspetto',
+        'logic_color' => 'Un genotipo è associato a un colore in base all\'aspetto di ogni locus. I portatori (+aq, +Ed…) non cambiano il colore; l\'aW di una femmina appare come aa; pldino appare pallid; PiPi appare come Pi+. Nei colori INO il fattore scuro non conta.',
+        'logic_plan_h' => 'Probabilità del pianificatore: con associazione e fase',
+        'logic_plan' => 'Il pianificatore calcola la probabilità che un piccolo abbia esattamente l\'aspetto del colore obiettivo, con tabelle ricavate dal calcolo PHP della prole. I loci associati (cin–ino–op, dark–parblue) usano la fase dei genitori (cis/trans) e i tassi di ricombinazione. Se la fase è sconosciuta, si mostrano media e intervallo. Esempio: lutino × lutino → verde 0%.',
     ],
 
     'es' => [
@@ -1135,6 +1155,10 @@ const README_LANG = [
         'logic_edged_1' => 'Autosómico recesivo. Solo <code>EdEd</code> es visible; <code>Ed+</code> es portador.',
         'logic_edged_2' => 'Nombre ALBS: Edged Dilute. Nombre internacional: marbled (símbolo mb). “Edged Dilute” proviene de una mala traducción del neerlandés pastelgezoomd (edged pastel); no es una combinación de edged y diluido.',
         'logic_edged_3' => 'El dominant edged de los inseparables de Fischer y enmascarados (ALBS: Spangled) es otra mutación, dominante.',
+        'logic_color_h' => 'Identificación del color: por la apariencia',
+        'logic_color' => 'Un genotipo se asigna a un color según la apariencia de cada locus. Los portadores (+aq, +Ed…) no cambian el color; el aW de una hembra se ve como aa; pldino se ve pallid; PiPi se ve como Pi+. En los colores INO no cuenta el factor oscuro.',
+        'logic_plan_h' => 'Probabilidad del planificador: con ligamiento y fase',
+        'logic_plan' => 'El planificador da la probabilidad de que una cría se vea exactamente como el objetivo, con tablas obtenidas del cálculo PHP de descendencia. Los loci ligados (cin–ino–op, dark–parblue) usan la fase de los padres (cis/trans) y las tasas de recombinación. Si la fase se desconoce, se muestran la media y el rango. Ejemplo: lutino × lutino → verde 0 %.',
     ],
 
     'id' => [
@@ -1321,6 +1345,10 @@ const README_LANG = [
         'logic_edged_1' => 'Resesif autosomal. Hanya <code>EdEd</code> yang tampak; <code>Ed+</code> adalah split.',
         'logic_edged_2' => 'Nama ALBS: Edged Dilute. Nama internasional: marbled (simbol mb). “Edged Dilute” berasal dari salah terjemahan bahasa Belanda pastelgezoomd (edged pastel); bukan kombinasi edged dan dilute.',
         'logic_edged_3' => 'Dominant edged pada lovebird Fischer dan Masked (ALBS: Spangled) adalah mutasi lain yang dominan.',
+        'logic_color_h' => 'Penentuan warna: berdasarkan tampilan',
+        'logic_color' => 'Genotipe dicocokkan dengan warna menurut tampilan setiap lokus. Pembawa (+aq, +Ed…) tidak mengubah warna; aW betina tampak seperti aa; pldino tampak pallid; PiPi tampak seperti Pi+. Warna INO tidak memperhitungkan faktor dark.',
+        'logic_plan_h' => 'Peluang perencana: termasuk linkage dan fase',
+        'logic_plan' => 'Perencana menghitung peluang anakan tampak persis seperti target, dengan tabel dari perhitungan keturunan PHP. Lokus terkait (cin–ino–op, dark–parblue) memakai fase induk (cis/trans) dan laju rekombinasi. Jika fase tidak diketahui, ditampilkan rata-rata dan rentangnya. Contoh: lutino × lutino → hijau 0%.',
     ],
 
     'th' => [
@@ -1440,6 +1468,10 @@ const README_LANG = [
         'logic_edged_1' => 'ยีนด้อยบนออโตโซม เฉพาะ <code>EdEd</code> ที่มองเห็น ส่วน <code>Ed+</code> เป็นสปลิต',
         'logic_edged_2' => 'ชื่อ ALBS: Edged Dilute ชื่อสากล: marbled (สัญลักษณ์ mb) “Edged Dilute” มาจากการแปลผิดของคำดัตช์ pastelgezoomd (edged pastel) ไม่ใช่การรวมกันของ edged กับไดลูท',
         'logic_edged_3' => 'dominant edged ในเลิฟเบิร์ดฟิชเชอร์และมาสก์ (ALBS: Spangled) เป็นการกลายพันธุ์อีกชนิดที่เป็นลักษณะเด่น',
+        'logic_color_h' => 'การระบุสี: ตามลักษณะที่เห็น',
+        'logic_color' => 'จีโนไทป์ถูกจับคู่กับสีตามลักษณะที่เห็นของแต่ละโลคัส ตัวพาหะ (+aq, +Ed…) ไม่เปลี่ยนสี aW ของตัวเมียดูเหมือน aa pldino ดูเป็น pallid และ PiPi ดูเหมือน Pi+ สี INO ไม่นับปัจจัย dark',
+        'logic_plan_h' => 'ความน่าจะเป็นของตัววางแผน: รวม linkage และเฟส',
+        'logic_plan' => 'ตัววางแผนคำนวณความน่าจะเป็นที่ลูกนกจะมีลักษณะตรงกับเป้าหมาย จากตารางที่สร้างจากการคำนวณลูกด้วย PHP โลคัสที่เชื่อมโยงกัน (cin–ino–op, dark–parblue) ใช้เฟสของพ่อแม่ (cis/trans) และอัตรารีคอมบิเนชัน หากไม่ทราบเฟส จะแสดงค่าเฉลี่ยและช่วง ตัวอย่าง: lutino × lutino → เขียว 0%',
     ],
 
     'pt' => [
@@ -1559,6 +1591,10 @@ const README_LANG = [
         'logic_edged_1' => 'Autossômico recessivo. Apenas <code>EdEd</code> é visível; <code>Ed+</code> é portador.',
         'logic_edged_2' => 'Nome ALBS: Edged Dilute. Nome internacional: marbled (símbolo mb). “Edged Dilute” vem de uma tradução errada do holandês pastelgezoomd (edged pastel); não é uma combinação de edged e diluído.',
         'logic_edged_3' => 'O dominant edged dos agapornis fischeri e personata (ALBS: Spangled) é outra mutação, dominante.',
+        'logic_color_h' => 'Identificação da cor: pela aparência',
+        'logic_color' => 'Um genótipo é associado a uma cor pela aparência de cada locus. Portadores (+aq, +Ed…) não mudam a cor; o aW de uma fêmea parece aa; pldino parece pallid; PiPi parece Pi+. Nas cores INO o fator escuro não conta.',
+        'logic_plan_h' => 'Probabilidade do planejador: com ligação e fase',
+        'logic_plan' => 'O planejador dá a probabilidade de um filhote ter exatamente a aparência do alvo, com tabelas do cálculo PHP de descendentes. Loci ligados (cin–ino–op, dark–parblue) usam a fase dos pais (cis/trans) e as taxas de recombinação. Se a fase for desconhecida, mostram-se a média e o intervalo. Exemplo: lutino × lutino → verde 0%.',
     ],
 
     // ============================================================
@@ -1695,6 +1731,10 @@ const README_LANG = [
         'logic_edged_1' => 'Autosomaal recessief. Alleen <code>EdEd</code> is zichtbaar; <code>Ed+</code> is split.',
         'logic_edged_2' => 'ALBS-naam: Edged Dilute. Internationale naam: marbled (symbool mb). „Edged Dilute” komt van een foute vertaling van pastelgezoomd (edged pastel); het is geen combinatie van gezoomd en dilute.',
         'logic_edged_3' => 'Dominant gezoomd (dominant edged) bij Fischers en zwartmaskers (ALBS: Spangled) is een andere, dominante mutatie.',
+        'logic_color_h' => 'Kleurbepaling: op uiterlijk',
+        'logic_color' => 'Een genotype wordt aan een kleur gekoppeld op basis van het uiterlijk van elk locus. Dragers (+aq, +Ed…) veranderen de kleur niet; aW van een pop ziet eruit als aa; pldino ziet er pallid uit; PiPi ziet eruit als Pi+. Bij INO-kleuren telt de donkerfactor niet.',
+        'logic_plan_h' => 'Kans in de planner: met koppeling en fase',
+        'logic_plan' => 'De planner geeft de kans dat een jong er precies zo uitziet als het doel, met tabellen uit de PHP-nakomelingenberekening. Gekoppelde loci (cin–ino–op, dark–parblue) gebruiken de fase van de ouders (cis/trans) en de recombinatiefrequenties. Is de fase onbekend, dan worden het gemiddelde en de spreiding getoond. Voorbeeld: lutino × lutino → groen 0%.',
     ],
 
     // ============================================================
@@ -1831,5 +1871,9 @@ const README_LANG = [
         'logic_edged_1' => 'Autosomal recessive. <code>EdEd</code> lamang ang nakikita; split ang <code>Ed+</code>.',
         'logic_edged_2' => 'Pangalan sa ALBS: Edged Dilute. Internasyonal na pangalan: marbled (simbolo mb). Ang “Edged Dilute” ay mula sa maling salin ng Dutch na pastelgezoomd (edged pastel); hindi ito kombinasyon ng edged at dilute.',
         'logic_edged_3' => 'Ang dominant edged ng Fischer’s at Masked lovebird (ALBS: Spangled) ay ibang mutasyon na dominante.',
+        'logic_color_h' => 'Pagtukoy ng kulay: ayon sa itsura',
+        'logic_color' => 'Itinutugma ang genotype sa kulay ayon sa itsura ng bawat locus. Hindi binabago ng carrier (+aq, +Ed…) ang kulay; ang aW ng babae ay mukhang aa; ang pldino ay mukhang pallid; ang PiPi ay mukhang Pi+. Sa mga kulay na INO, hindi binibilang ang dark.',
+        'logic_plan_h' => 'Probabilidad ng planner: kasama ang linkage at phase',
+        'logic_plan' => 'Ibinibigay ng planner ang tsansa na ang sisiw ay eksaktong kamukha ng target, gamit ang mga talahanayan mula sa PHP na kalkulasyon ng supling. Ang mga magkakaugnay na locus (cin–ino–op, dark–parblue) ay gumagamit ng phase ng mga magulang (cis/trans) at ng recombination rate. Kung hindi alam ang phase, ipinapakita ang average at ang saklaw. Halimbawa: lutino × lutino → green 0%.',
     ],
 ];

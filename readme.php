@@ -271,6 +271,12 @@ php -S localhost:8000</code></pre>
 <li><?= rt('logic_edged_3') ?></li>
 </ul>
 
+<h3><?= rt('logic_color_h') ?></h3>
+<p><?= rt('logic_color') ?></p>
+
+<h3><?= rt('logic_plan_h') ?></h3>
+<p><?= rt('logic_plan') ?></p>
+
 <hr>
 
 <h2>🧪 <?= rt('demo') ?></h2>
